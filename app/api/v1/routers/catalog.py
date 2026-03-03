@@ -1,0 +1,26 @@
+from fastapi import APIRouter, Depends
+from sqlmodel import Session, select
+
+from app.core.deps import get_current_tenant_id
+from app.db.session import get_session
+from app.models import Flavor, Image
+from app.schemas import FlavorRead, ImageRead
+
+router = APIRouter(tags=["catalog"])
+
+
+@router.get("/flavors", response_model=list[FlavorRead])
+def list_flavors(
+    _: int = Depends(get_current_tenant_id),
+    session: Session = Depends(get_session),
+):
+    return session.exec(select(Flavor).order_by(Flavor.name.asc())).all()
+
+
+@router.get("/images", response_model=list[ImageRead])
+def list_images(
+    _: int = Depends(get_current_tenant_id),
+    session: Session = Depends(get_session),
+):
+    return session.exec(select(Image).where(Image.is_active == True).order_by(Image.code.asc())).all()  # noqa: E712
+

@@ -1,0 +1,18 @@
+flowchart TB
+    subgraph FastAPI["FastAPI Monolith"]
+        R[Routers]
+        S[Services]
+        M[SQLModel Models]
+        P[Docker Provider]
+        D[Auth Dependencies]
+    end
+
+    R --> S
+    S --> M
+    S --> P
+    R --> D
+    D --> M
+
+    M --> PG[(PostgreSQL)]
+    P --> DK[(Docker Daemon)]
+

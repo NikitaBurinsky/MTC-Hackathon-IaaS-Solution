@@ -1,0 +1,21 @@
+sequenceDiagram
+    actor U as Tenant User
+    participant API as FastAPI
+    participant BILL as BillingService
+    participant DB as PostgreSQL
+    participant BG as BackgroundTask
+    participant DK as Docker
+
+    U->>API: POST /api/v1/instances
+    API->>BILL: assert_can_allocate(tenant, flavor)
+    BILL->>DB: read plan + used resources + balance
+    BILL-->>API: OK
+    API->>DB: create instance(PROVISIONING)
+    API->>DB: create instance_operation(PENDING)
+    API-->>U: 202 + provisioning_operation_id
+    API->>BG: enqueue provision task
+    BG->>DK: create/start container
+    BG->>DB: instance RUNNING + docker_id + ip
+    BG->>DB: operation SUCCESS
+    BG->>DB: open usage interval
+

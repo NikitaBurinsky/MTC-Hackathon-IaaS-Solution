@@ -1,0 +1,20 @@
+flowchart LR
+    User[User / Tenant Admin]
+    FE[React SPA]
+    API[FastAPI Monolith]
+    Docker[(Docker Engine)]
+    PG[(PostgreSQL)]
+    Nginx[Nginx Reverse Proxy]
+    GH[GitHub Actions]
+    VPS[VPS Host]
+
+    User --> FE
+    FE --> Nginx
+    Nginx --> API
+    API --> PG
+    API --> Docker
+    GH --> VPS
+    VPS --> Nginx
+    VPS --> API
+    VPS --> PG
+

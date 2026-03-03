@@ -1,0 +1,10 @@
+flowchart LR
+    Token[JWT: sub + tenant_id] --> Dep[get_current_user dependency]
+    Dep --> User[(users)]
+    Dep --> Filter[tenant_id scoped queries]
+    Filter --> Instances[(instances)]
+    Filter --> Tasks[(tasks)]
+    Filter --> Networks[(networks)]
+    Filter --> Scripts[(scripts)]
+    Filter --> Usage[(resource_usage_logs)]
+

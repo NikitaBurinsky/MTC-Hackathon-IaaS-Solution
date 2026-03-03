@@ -1,0 +1,23 @@
+sequenceDiagram
+    actor U as Tenant User
+    participant API as FastAPI
+    participant DB as PostgreSQL
+    participant BG as BackgroundTask
+    participant DK as Docker
+
+    U->>API: POST /api/v1/tasks/execute
+    API->>DB: create task + task_runs(PENDING)
+    API-->>U: task_id + status=PENDING
+    API->>BG: enqueue task execution
+    BG->>DB: task RUNNING
+    loop per instance
+        BG->>DB: check instance status
+        alt instance RUNNING
+            BG->>DK: docker exec script
+            BG->>DB: task_run SUCCESS/FAILED + stdout/stderr
+        else STOPPED/invalid
+            BG->>DB: task_run FAILED (Instance is not RUNNING)
+        end
+    end
+    BG->>DB: aggregate task status (SUCCESS/FAILED/PARTIAL_SUCCESS)
+
