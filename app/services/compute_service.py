@@ -136,7 +136,6 @@ class ComputeService:
                 operation.status = InstanceOperationStatus.SUCCESS
                 operation.finished_at = datetime.utcnow()
 
-                self.billing_service.open_usage_interval(session, instance)
                 session.add(instance)
                 session.add(operation)
                 session.commit()
@@ -216,9 +215,6 @@ class ComputeService:
             except Exception:  # noqa: BLE001
                 pass
 
-        if instance.status == InstanceStatus.RUNNING:
-            self.billing_service.close_open_usage_interval(session, instance)
-
         instance.status = InstanceStatus.TERMINATED
         instance.deleted_at = datetime.utcnow()
         instance.updated_at = datetime.utcnow()
@@ -251,7 +247,6 @@ class ComputeService:
             provider.start_instance(instance.docker_container_id)
             instance.status = InstanceStatus.RUNNING
             instance.updated_at = datetime.utcnow()
-            self.billing_service.open_usage_interval(session, instance)
             session.add(instance)
             session.commit()
             session.refresh(instance)
@@ -271,7 +266,6 @@ class ComputeService:
                     detail="Container ID is missing",
                 )
             provider.stop_instance(instance.docker_container_id)
-            self.billing_service.close_open_usage_interval(session, instance)
             instance.status = InstanceStatus.STOPPED
             instance.updated_at = datetime.utcnow()
             session.add(instance)

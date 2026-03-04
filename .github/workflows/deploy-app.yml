@@ -127,6 +127,8 @@ jobs:
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf/nginx.conf"; fi
             if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="lax"; fi
             if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
+            if [ -z "${CPU_PRICE_PER_VCPU_MIN}" ]; then CPU_PRICE_PER_VCPU_MIN="1"; fi
+            if [ -z "${RAM_PRICE_PER_GB_MIN}" ]; then RAM_PRICE_PER_GB_MIN="5"; fi
 
             cp "${APP_DIR}/infra/nginx/nginx.conf" "${NGINX_RUNTIME_CONF}"
 
@@ -139,6 +141,8 @@ jobs:
             export DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE
+            export CPU_PRICE_PER_VCPU_MIN
+            export RAM_PRICE_PER_GB_MIN
             export DEPLOYMENT_PUBLIC_PATH_PREFIX
             export DEPLOYMENT_PUBLIC_SCHEME
             export NGINX_CONTAINER_NAME

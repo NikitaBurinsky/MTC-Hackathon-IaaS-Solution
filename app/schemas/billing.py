@@ -20,7 +20,12 @@ class UsageItem(SQLModel):
     started_at: datetime
     ended_at: datetime | None
     duration_sec: int
-    credits_charged: float
+    cpu_usage_vcpu: float
+    ram_usage_gb: float
+    base_price_per_min: float
+    cpu_charge: float
+    ram_charge: float
+    total_charge: float
 
 
 class UsageResponse(SQLModel):
