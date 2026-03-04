@@ -13,12 +13,13 @@ auth_service = AuthService()
 
 def set_auth_cookie(response: Response, token: str) -> None:
     settings = get_settings()
+    secure = settings.cookie_secure or settings.cookie_samesite == "none"
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite="lax",
-        secure=False,
+        samesite=settings.cookie_samesite,
+        secure=secure,
         max_age=settings.access_token_expire_minutes * 60,
         path="/",
     )

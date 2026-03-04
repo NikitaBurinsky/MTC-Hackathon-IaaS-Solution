@@ -8,6 +8,8 @@
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/iaas}
       JWT_SECRET: ${JWT_SECRET:-change-me}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-120}
+      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:

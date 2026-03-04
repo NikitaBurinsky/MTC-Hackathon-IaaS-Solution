@@ -2,6 +2,11 @@ import os
 from functools import lru_cache
 
 
+def _env_bool(name: str, default: str = "false") -> bool:
+    value = os.getenv(name, default).strip().lower()
+    return value in {"1", "true", "yes", "on"}
+
+
 class Settings:
     def __init__(self) -> None:
         self.app_name = os.getenv("APP_NAME", "Hackathon IaaS API")
@@ -15,6 +20,8 @@ class Settings:
         self.access_token_expire_minutes = int(
             os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120")
         )
+        self.cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
+        self.cookie_secure = _env_bool("COOKIE_SECURE", "false")
 
         self.default_plan_name = os.getenv("DEFAULT_PLAN_NAME", "starter")
         self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "1"))

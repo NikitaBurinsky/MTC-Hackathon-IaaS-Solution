@@ -84,6 +84,8 @@ jobs:
             DOMAIN="${{ secrets.DOMAIN }}"
             JWT_SECRET="${{ secrets.JWT_SECRET }}"
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
+            COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
@@ -108,12 +110,16 @@ jobs:
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf"; fi
+            if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="none"; fi
+            if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
 
             cp "${APP_DIR}/infra/nginx/nginx.conf" "${NGINX_RUNTIME_CONF}"
 
             export DATABASE_URL
             export JWT_SECRET
             export DOMAIN
+            export COOKIE_SAMESITE
+            export COOKIE_SECURE
             export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
             export APP_IMAGE="${IMAGE_REF}"
 
@@ -128,5 +134,4 @@ jobs:
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload
 
             echo "Deploy finished with image ${IMAGE_REF}."
-
 
