@@ -152,6 +152,9 @@ class InstanceOperation(SQLModel, table=True):
     )
 
 
+Index("ix_instances_tenant_name", Instance.tenant_id, Instance.name, unique=True)
+
+
 class ResourceUsageLog(SQLModel, table=True):
     __tablename__ = "resource_usage_logs"
 
@@ -196,6 +199,9 @@ class Script(SQLModel, table=True):
     updated_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
     )
+
+
+Index("ix_scripts_tenant_name", Script.tenant_id, Script.name, unique=True)
 
 
 class Task(SQLModel, table=True):

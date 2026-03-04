@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -20,6 +21,7 @@ from app.models import (
 from app.providers.compute.docker_provider import get_docker_provider
 from app.services.billing_service import BillingService
 
+logger = logging.getLogger(__name__)
 
 class ComputeService:
     def __init__(self) -> None:
@@ -69,6 +71,17 @@ class ComputeService:
         if not image or not image.is_active:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Image not found"
+            )
+
+        existing = session.exec(
+            select(Instance).where(
+                Instance.tenant_id == tenant_id, Instance.name == name
+            ),
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Instance name already exists",
             )
 
         self.billing_service.assert_can_allocate(session, tenant_id, flavor)
@@ -144,11 +157,21 @@ class ComputeService:
                     try:
                         provider.stop_instance(container_id)
                     except Exception:  # noqa: BLE001
-                        pass
+                        logger.warning(
+                            "Failed to stop container after provision error instance_id=%s container_id=%s",
+                            instance_id,
+                            container_id,
+                            exc_info=True,
+                        )
                     try:
                         provider.remove_instance(container_id)
                     except Exception:  # noqa: BLE001
-                        pass
+                        logger.warning(
+                            "Failed to remove container after provision error instance_id=%s container_id=%s",
+                            instance_id,
+                            container_id,
+                            exc_info=True,
+                        )
                 instance.status = InstanceStatus.ERROR
                 instance.updated_at = datetime.utcnow()
                 operation.status = InstanceOperationStatus.FAILED
@@ -209,11 +232,21 @@ class ComputeService:
             try:
                 provider.stop_instance(instance.docker_container_id)
             except Exception:  # noqa: BLE001
-                pass
+                logger.warning(
+                    "Failed to stop container during delete instance_id=%s container_id=%s",
+                    instance.id,
+                    instance.docker_container_id,
+                    exc_info=True,
+                )
             try:
                 provider.remove_instance(instance.docker_container_id)
             except Exception:  # noqa: BLE001
-                pass
+                logger.warning(
+                    "Failed to remove container during delete instance_id=%s container_id=%s",
+                    instance.id,
+                    instance.docker_container_id,
+                    exc_info=True,
+                )
 
         instance.status = InstanceStatus.TERMINATED
         instance.deleted_at = datetime.utcnow()
