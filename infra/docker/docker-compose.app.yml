@@ -12,8 +12,7 @@
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - backbone
-
-  nginx:
+nginx:
     image: nginx:1.27-alpine
     container_name: iaas-nginx
     restart: unless-stopped
@@ -23,26 +22,12 @@
     volumes:
       - ${NGINX_CONF_PATH:-../nginx/nginx.conf}:/etc/nginx/conf.d/default.conf:ro
       - certbot-www:/var/www/certbot
-      - letsencrypt:/etc/letsencrypt
+      # МЕНЯЕМ ТУТ:
+      - /etc/letsencrypt:/etc/letsencrypt:ro 
     depends_on:
       - api
     networks:
       - backbone
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: iaas-certbot
-    profiles:
-      - tools
-    volumes:
-      - certbot-www:/var/www/certbot
-      - letsencrypt:/etc/letsencrypt
-    networks:
-      - backbone
-
-volumes:
-  certbot-www:
-  letsencrypt:
 
 networks:
   backbone:
