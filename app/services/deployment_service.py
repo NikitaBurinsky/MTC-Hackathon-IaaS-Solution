@@ -603,7 +603,7 @@ class DeploymentService:
         )
         self._configure_gemini_proxy()
         genai.configure(api_key=self.settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-2.5-pro")
 
         prompt_context = {
             "directory_tree": context.directory_tree,

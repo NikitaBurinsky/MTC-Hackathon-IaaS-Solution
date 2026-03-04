@@ -84,6 +84,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        "https://api.formatis.online",
         "https://formatis.online",
         "https://mts-hackathon.vercel.app",
         "http://localhost",
