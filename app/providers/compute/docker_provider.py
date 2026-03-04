@@ -10,7 +10,12 @@ class DockerProvider:
             raise RuntimeError("Docker SDK is not installed") from exc
 
         self._docker_module = docker
-        self.client = docker.from_env()
+        try:
+            self.client = docker.from_env()
+        except Exception as exc:  # noqa: BLE001
+            raise RuntimeError(
+                "Docker daemon is unavailable. For containerized API, mount /var/run/docker.sock.",
+            ) from exc
 
     def ping(self) -> None:
         self.client.ping()
@@ -70,4 +75,3 @@ def get_docker_provider() -> DockerProvider:
     if _provider is None:
         _provider = DockerProvider()
     return _provider
-
