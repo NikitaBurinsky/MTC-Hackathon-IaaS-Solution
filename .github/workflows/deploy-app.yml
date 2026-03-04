@@ -118,7 +118,7 @@ jobs:
             docker network inspect "${DEPLOYMENT_NETWORK_NAME}" >/dev/null 2>&1 || docker network create "${DEPLOYMENT_NETWORK_NAME}"
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
-            if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf"; fi
+            if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf/nginx.conf"; fi
             if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="none"; fi
             if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
 
