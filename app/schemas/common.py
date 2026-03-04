@@ -8,7 +8,6 @@ class MessageResponse(SQLModel):
 class ErrorDetail(SQLModel):
     code: str
     message: str
-    details: dict | list[dict] | None = None
 
 
 class ErrorResponse(SQLModel):
