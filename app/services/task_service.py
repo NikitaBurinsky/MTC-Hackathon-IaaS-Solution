@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -19,6 +20,8 @@ from app.providers.compute.docker_provider import get_docker_provider
 
 
 class TaskService:
+    _max_workers = 4
+
     def create_task(
         self,
         session: Session,
@@ -96,8 +99,60 @@ class TaskService:
         background_tasks.add_task(self._run_task, task.id)
         return task
 
-    def _run_task(self, task_id: int) -> None:
+    def _execute_task_run(self, run_id: int) -> TaskRunStatus:
         provider = get_docker_provider()
+        with Session(engine) as session:
+            run = session.get(TaskRun, run_id)
+            if not run:
+                return TaskRunStatus.FAILED
+
+            task = session.get(Task, run.task_id)
+            if not task:
+                run.status = TaskRunStatus.FAILED
+                run.stderr = "Task not found"
+                run.finished_at = datetime.utcnow()
+                session.add(run)
+                session.commit()
+                return run.status
+
+            run.started_at = datetime.utcnow()
+            run.status = TaskRunStatus.RUNNING
+            session.add(run)
+            session.commit()
+
+            instance = session.get(Instance, run.instance_id)
+            if (
+                not instance
+                or instance.status != InstanceStatus.RUNNING
+                or not instance.docker_container_id
+            ):
+                run.status = TaskRunStatus.FAILED
+                run.stderr = "Instance is not RUNNING"
+                run.finished_at = datetime.utcnow()
+                session.add(run)
+                session.commit()
+                return run.status
+
+            try:
+                exit_code, stdout, stderr = provider.exec_script(
+                    instance.docker_container_id,
+                    task.script_body_snapshot,
+                )
+                run.stdout = stdout
+                run.stderr = stderr
+                run.status = (
+                    TaskRunStatus.SUCCESS if exit_code == 0 else TaskRunStatus.FAILED
+                )
+            except Exception as exc:  # noqa: BLE001
+                run.status = TaskRunStatus.FAILED
+                run.stderr = str(exc)
+
+            run.finished_at = datetime.utcnow()
+            session.add(run)
+            session.commit()
+            return run.status
+
+    def _run_task(self, task_id: int) -> None:
         with Session(engine) as session:
             task = session.get(Task, task_id)
             if not task:
@@ -107,46 +162,30 @@ class TaskService:
             session.add(task)
             session.commit()
 
-            runs = session.exec(select(TaskRun).where(TaskRun.task_id == task.id)).all()
-            for run in runs:
-                run.started_at = datetime.utcnow()
-                run.status = TaskRunStatus.RUNNING
-                session.add(run)
-                session.commit()
+            run_ids = session.exec(
+                select(TaskRun.id).where(TaskRun.task_id == task.id)
+            ).all()
 
-                instance = session.get(Instance, run.instance_id)
-                if (
-                    not instance
-                    or instance.status != InstanceStatus.RUNNING
-                    or not instance.docker_container_id
-                ):
-                    run.status = TaskRunStatus.FAILED
-                    run.stderr = "Instance is not RUNNING"
-                    run.finished_at = datetime.utcnow()
-                    session.add(run)
-                    session.commit()
-                    continue
+        if not run_ids:
+            return
 
+        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+            futures = [
+                executor.submit(self._execute_task_run, run_id) for run_id in run_ids
+            ]
+            for future in as_completed(futures):
                 try:
-                    exit_code, stdout, stderr = provider.exec_script(
-                        instance.docker_container_id,
-                        task.script_body_snapshot,
-                    )
-                    run.stdout = stdout
-                    run.stderr = stderr
-                    run.status = (
-                        TaskRunStatus.SUCCESS
-                        if exit_code == 0
-                        else TaskRunStatus.FAILED
-                    )
-                except Exception as exc:  # noqa: BLE001
-                    run.status = TaskRunStatus.FAILED
-                    run.stderr = str(exc)
-                run.finished_at = datetime.utcnow()
-                session.add(run)
-                session.commit()
+                    future.result()
+                except Exception:  # noqa: BLE001
+                    pass
 
-            runs = session.exec(select(TaskRun).where(TaskRun.task_id == task.id)).all()
+        with Session(engine) as session:
+            task = session.get(Task, task_id)
+            if not task:
+                return
+            runs = session.exec(
+                select(TaskRun).where(TaskRun.task_id == task.id)
+            ).all()
             success_count = sum(item.status == TaskRunStatus.SUCCESS for item in runs)
             failed_count = sum(item.status == TaskRunStatus.FAILED for item in runs)
 
