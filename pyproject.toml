@@ -8,6 +8,7 @@ dependencies = [
     "fastapi~=0.115.12",
     "passlib[argon2]~=1.7.4",
     "psycopg[binary]~=3.2.6",
+    "python-multipart~=0.0.9",
     "python-jose[cryptography]~=3.4.0",
     "sqlalchemy~=2.0.39",
     "sqlmodel~=0.0.24",
