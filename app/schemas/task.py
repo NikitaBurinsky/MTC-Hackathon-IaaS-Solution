@@ -1,14 +1,22 @@
 from datetime import datetime
 
-from sqlmodel import SQLModel
+from pydantic import field_validator
+from sqlmodel import Field, SQLModel
 
 from app.models import ScriptSourceType, TaskRunStatus, TaskStatus
 
 
 class TaskExecuteRequest(SQLModel):
-    instance_ids: list[int]
-    script_body: str | None = None
-    script_id: int | None = None
+    instance_ids: list[int] = Field(min_length=1)
+    script_body: str | None = Field(default=None, min_length=1)
+    script_id: int | None = Field(default=None, gt=0)
+
+    @field_validator("instance_ids")
+    @classmethod
+    def validate_instance_ids(cls, value: list[int]) -> list[int]:
+        if not value:
+            raise ValueError("instance_ids must not be empty")
+        return value
 
 
 class TaskRead(SQLModel):

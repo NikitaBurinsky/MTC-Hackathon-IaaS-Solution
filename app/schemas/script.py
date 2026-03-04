@@ -1,16 +1,16 @@
 from datetime import datetime
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 
 class ScriptCreateRequest(SQLModel):
-    name: str
-    body: str
+    name: str = Field(min_length=1)
+    body: str = Field(min_length=1)
 
 
 class ScriptUpdateRequest(SQLModel):
-    name: str | None = None
-    body: str | None = None
+    name: str | None = Field(default=None, min_length=1)
+    body: str | None = Field(default=None, min_length=1)
 
 
 class ScriptRead(SQLModel):
