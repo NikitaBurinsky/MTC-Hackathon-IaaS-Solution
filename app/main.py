@@ -25,4 +25,3 @@ app.include_router(api_router, prefix=settings.api_prefix)
 @app.get("/")
 async def root():
     return {"message": "Cloud Platform MVP is running!"}
-
