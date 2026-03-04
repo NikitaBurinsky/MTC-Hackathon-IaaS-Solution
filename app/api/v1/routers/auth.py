@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlmodel import Session
 
+from app.core.config import get_settings
 from app.core.security import create_access_token
 from app.db.session import get_session
 from app.schemas import LoginRequest, RegisterRequest, RegisterResponse, TokenResponse
@@ -8,6 +9,19 @@ from app.services import AuthService
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 auth_service = AuthService()
+
+
+def set_auth_cookie(response: Response, token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        secure=False,
+        max_age=settings.access_token_expire_minutes * 60,
+        path="/",
+    )
 
 
 async def get_login_payload(request: Request) -> LoginRequest:
@@ -30,7 +44,11 @@ async def get_login_payload(request: Request) -> LoginRequest:
 @router.post(
     "/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED
 )
-def register(payload: RegisterRequest, session: Session = Depends(get_session)):
+def register(
+    payload: RegisterRequest,
+    response: Response,
+    session: Session = Depends(get_session),
+):
     user, tenant = auth_service.register(
         session=session,
         name=payload.name,
@@ -39,6 +57,7 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
         tenant_name=payload.tenant_name,
     )
     token = create_access_token(subject=str(user.id), tenant_id=tenant.id)
+    set_auth_cookie(response, token)
     return RegisterResponse(
         tenant_id=tenant.id,
         tenant_name=tenant.name,
@@ -51,9 +70,11 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
 @router.post("/login", response_model=TokenResponse)
 def login(
     payload: LoginRequest = Depends(get_login_payload),
+    response: Response,
     session: Session = Depends(get_session),
 ):
     token = auth_service.login(
         session=session, email=payload.email, password=payload.password
     )
+    set_auth_cookie(response, token)
     return TokenResponse(access_token=token)

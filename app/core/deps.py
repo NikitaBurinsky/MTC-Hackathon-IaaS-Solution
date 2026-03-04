@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
@@ -6,11 +6,12 @@ from app.core.security import decode_access_token
 from app.db.session import get_session
 from app.models import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 def get_current_user(
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(oauth2_scheme),
+    access_token: str | None = Cookie(default=None),
     session: Session = Depends(get_session),
 ) -> User:
     credentials_error = HTTPException(
@@ -18,6 +19,10 @@ def get_current_user(
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    token = token or access_token
+    if not token:
+        raise credentials_error
 
     try:
         payload = decode_access_token(token)
