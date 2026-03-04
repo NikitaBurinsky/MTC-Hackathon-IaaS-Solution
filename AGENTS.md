@@ -18,23 +18,20 @@
 - Naming: `snake_case` for functions/vars, `PascalCase` for classes, `UPPER_CASE` for constants.
 - No formatter/linter is configured; keep changes consistent with surrounding files.
 
-## Testing Guidelines
-- No automated test framework or coverage thresholds are configured.
-- Manual validation lives in `docs/manual-test-checklist.md` and is executed via Swagger at `/docs`.
-- If you introduce automated tests, document the framework and the run command here.
-
 ## Task Intake & Clarifications
 - Check `TODO.md` for pending changes and confirm which items to implement before starting.
+- If multiple TODOs exist, ask which items are in scope and their priority.
 - Ask focused questions about implementation details (inputs/outputs, edge cases, constraints) when TODOs are ambiguous.
 - Be skeptical of scope creep; prefer minimal changes that meet the requirement and avoid overengineering.
 - When architectural choices are unclear, ask about expectations (e.g., DB schema impact, service boundaries, provider usage) and offer 2-3 options with tradeoffs.
 
 ## Branching & Commit Workflow
-- Create a short-lived branch off `main` for each change (e.g., `docs/agents-guidelines`, `fix/billing-quota`).
+- Work on the long-lived `dev` branch; do not develop directly on `main`.
+- Create short-lived feature branches off `dev` (e.g., `feature/auth-email`, `fix/billing-quota`).
+- Rebase feature branches onto `dev` before integration, then merge into `dev` with `--ff-only`.
+- Keep `dev` current by rebasing onto `origin/main` (`git fetch origin` then `git rebase origin/main`); when releasing, fast-forward `main` to `dev`.
 - Git history favors short, descriptive messages (e.g., `fix .envrc`, `Split workflow: build/push GHCR image & deploy`).
-- Rebase your branch onto `main` before integration: `git fetch origin` then `git rebase origin/main`.
-- Merge back to `main` locally with fast-forward if possible: `git checkout main` then `git merge --ff-only <branch>`.
-- Do not use pull requests and do not force push.
+- Avoid merge commits, pull requests, and force pushes.
 
 ## Security & Configuration Tips
 - Keep secrets in `.env` only; do not commit real credentials.
