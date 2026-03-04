@@ -13,7 +13,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 from uuid import uuid4
 
@@ -589,16 +588,15 @@ class DeploymentService:
         return False
 
     def _generate_dockerfile(self, context: RepositoryContext) -> str:
-        if not self.settings.DEEPSEEK_API_KEY:
-            logger.error("[AI_SYS] DEEPSEEK_API_KEY is missing")
-            raise RuntimeError("DEEPSEEK_API_KEY is not configured")
+        if not self.settings.PROXYAPI_API_KEY:
+            logger.error("[AI_SYS] PROXYAPI_API_KEY is missing")
+            raise RuntimeError("PROXYAPI_API_KEY is not configured")
 
         logger.info(
-            "[AI_SYS] DeepSeek Dockerfile generation started metadata_files=%s entrypoints=%s",
+            "[AI_SYS] ProxyAPI/OpenRouter Dockerfile generation started metadata_files=%s entrypoints=%s",
             len(context.metadata_files),
             len(context.entrypoints),
         )
-        self._configure_deepseek_proxy()
 
         prompt_context = {
             "directory_tree": context.directory_tree,
@@ -622,81 +620,32 @@ class DeploymentService:
             f"{json.dumps(prompt_context, ensure_ascii=True, indent=2)}"
         )
 
-        dockerfile_text = self._call_deepseek_api(prompt).strip()
+        dockerfile_text = self._call_proxyapi_chat(prompt).strip()
         logger.info(
-            "[AI_SYS] DeepSeek response received dockerfile_chars=%s",
+            "[AI_SYS] ProxyAPI/OpenRouter response received dockerfile_chars=%s",
             len(dockerfile_text),
         )
 
         if not dockerfile_text:
-            logger.error("[AI_SYS] DeepSeek returned empty Dockerfile")
-            raise RuntimeError("DeepSeek returned empty Dockerfile")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter returned empty Dockerfile")
+            raise RuntimeError("ProxyAPI/OpenRouter returned empty Dockerfile")
         if "```" in dockerfile_text:
-            logger.error("[AI_SYS] DeepSeek returned markdown fences in Dockerfile response")
-            raise RuntimeError("DeepSeek response must not include markdown code fences")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter returned markdown fences in Dockerfile response")
+            raise RuntimeError("ProxyAPI/OpenRouter response must not include markdown code fences")
         if "FROM" not in dockerfile_text.upper():
-            logger.error("[AI_SYS] DeepSeek Dockerfile validation failed: missing FROM")
-            raise RuntimeError("DeepSeek returned invalid Dockerfile content")
-        logger.info("[AI_SYS] DeepSeek Dockerfile validation succeeded")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter Dockerfile validation failed: missing FROM")
+            raise RuntimeError("ProxyAPI/OpenRouter returned invalid Dockerfile content")
+        logger.info("[AI_SYS] ProxyAPI/OpenRouter Dockerfile validation succeeded")
         return dockerfile_text
 
-    def _configure_deepseek_proxy(self) -> None:
-        proxy_url = self._build_deepseek_proxy_url()
-        if not proxy_url:
-            logger.info("[AI_SYS] DeepSeek proxy is not configured; using direct connection")
-            return
-
-        os.environ["HTTP_PROXY"] = proxy_url
-        os.environ["HTTPS_PROXY"] = proxy_url
-        os.environ["http_proxy"] = proxy_url
-        os.environ["https_proxy"] = proxy_url
-        logger.info("[AI_SYS] DeepSeek proxy configured for HTTP(S) traffic")
-
-    def _build_deepseek_proxy_url(self) -> str | None:
-        direct_proxy_url = self.settings.deepseek_proxy_url.strip()
-        if direct_proxy_url:
-            logger.info("[AI_SYS] DeepSeek proxy using direct proxy URL configuration")
-            return direct_proxy_url
-
-        proxy_host = self.settings.deepseek_proxy_host.strip()
-        if not proxy_host:
-            return None
-
-        proxy_scheme = self.settings.deepseek_proxy_scheme.strip() or "http"
-        proxy_port = self.settings.deepseek_proxy_port.strip()
-        proxy_username = self.settings.deepseek_proxy_username
-        proxy_password = self.settings.deepseek_proxy_password
-
-        auth_part = ""
-        if proxy_username and not proxy_password:
-            logger.error("[AI_SYS] DeepSeek proxy username provided without password")
-            raise RuntimeError("DEEPSEEK proxy password is required when username is configured")
-        if proxy_password and not proxy_username:
-            logger.error("[AI_SYS] DeepSeek proxy password provided without username")
-            raise RuntimeError("DEEPSEEK proxy username is required when password is configured")
-        if proxy_username:
-            encoded_username = quote(proxy_username, safe="")
-            encoded_password = quote(proxy_password, safe="")
-            auth_part = f"{encoded_username}:{encoded_password}@"
-
-        port_part = f":{proxy_port}" if proxy_port else ""
-        logger.info(
-            "[AI_SYS] DeepSeek proxy URL assembled scheme=%s host=%s has_auth=%s has_port=%s",
-            proxy_scheme,
-            proxy_host,
-            bool(proxy_username),
-            bool(proxy_port),
-        )
-        return f"{proxy_scheme}://{auth_part}{proxy_host}{port_part}"
-
-    def _call_deepseek_api(self, prompt: str) -> str:
-        base_url = self.settings.deepseek_api_base_url.strip()
+    def _call_proxyapi_chat(self, prompt: str) -> str:
+        base_url = self.settings.proxyapi_base_url.strip()
         if not base_url:
-            raise RuntimeError("DEEPSEEK_API_BASE_URL is not configured")
+            raise RuntimeError("PROXYAPI_BASE_URL is not configured")
 
         endpoint = f"{base_url.rstrip('/')}/chat/completions"
         payload = {
-            "model": self.settings.deepseek_model,
+            "model": self.settings.proxyapi_model,
             "messages": [
                 {
                     "role": "system",
@@ -716,21 +665,21 @@ class DeploymentService:
             method="POST",
             headers={
                 "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.settings.DEEPSEEK_API_KEY}",
+                "Authorization": f"Bearer {self.settings.PROXYAPI_API_KEY}",
             },
         )
         logger.info(
-            "[AI_SYS] DeepSeek API request started endpoint=%s model=%s prompt_chars=%s timeout_sec=%s",
+            "[AI_SYS] ProxyAPI/OpenRouter request started endpoint=%s model=%s prompt_chars=%s timeout_sec=%s",
             endpoint,
-            self.settings.deepseek_model,
+            self.settings.proxyapi_model,
             len(prompt),
-            self.settings.deepseek_timeout_sec,
+            self.settings.proxyapi_timeout_sec,
         )
         try:
-            with urlopen(request, timeout=self.settings.deepseek_timeout_sec) as response:
+            with urlopen(request, timeout=self.settings.proxyapi_timeout_sec) as response:
                 response_bytes = response.read()
                 logger.debug(
-                    "[AI_SYS] DeepSeek API response received status=%s bytes=%s",
+                    "[AI_SYS] ProxyAPI/OpenRouter response received status=%s bytes=%s",
                     getattr(response, "status", "unknown"),
                     len(response_bytes),
                 )
@@ -738,49 +687,55 @@ class DeploymentService:
         except HTTPError as exc:
             error_body = exc.read().decode("utf-8", errors="replace")
             logger.error(
-                "[AI_SYS] DeepSeek API HTTP error status=%s body=%s",
+                "[AI_SYS] ProxyAPI/OpenRouter HTTP error status=%s body=%s",
                 exc.code,
                 error_body,
             )
-            raise RuntimeError(f"DeepSeek API HTTP error {exc.code}: {error_body}") from exc
+            raise RuntimeError(f"ProxyAPI/OpenRouter HTTP error {exc.code}: {error_body}") from exc
         except URLError as exc:
-            logger.error("[AI_SYS] DeepSeek API connection error error=%s", exc)
-            raise RuntimeError(f"DeepSeek API connection error: {exc}") from exc
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter connection error error=%s", exc)
+            raise RuntimeError(f"ProxyAPI/OpenRouter connection error: {exc}") from exc
         except TimeoutError as exc:
-            logger.error("[AI_SYS] DeepSeek API timeout error=%s", exc)
-            raise RuntimeError(f"DeepSeek API timeout: {exc}") from exc
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter timeout error=%s", exc)
+            raise RuntimeError(f"ProxyAPI/OpenRouter timeout: {exc}") from exc
         except Exception as exc:  # noqa: BLE001
-            logger.exception("[AI_SYS] DeepSeek API unexpected error error=%s", exc)
-            raise RuntimeError(f"DeepSeek API request failed: {exc}") from exc
+            logger.exception("[AI_SYS] ProxyAPI/OpenRouter unexpected error error=%s", exc)
+            raise RuntimeError(f"ProxyAPI/OpenRouter request failed: {exc}") from exc
 
-        return self._extract_deepseek_text(response_payload)
+        return self._extract_proxyapi_text(response_payload)
 
-    def _extract_deepseek_text(self, response_payload: object) -> str:
+    def _extract_proxyapi_text(self, response_payload: object) -> str:
         if not isinstance(response_payload, dict):
-            logger.error("[AI_SYS] DeepSeek response payload is not an object")
-            raise RuntimeError("DeepSeek response payload is invalid")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter payload is not an object")
+            raise RuntimeError("ProxyAPI/OpenRouter payload is invalid")
+
+        error_payload = response_payload.get("error")
+        if isinstance(error_payload, dict):
+            message = str(error_payload.get("message") or "unknown error")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter returned error payload message=%s", message)
+            raise RuntimeError(f"ProxyAPI/OpenRouter error: {message}")
 
         choices = response_payload.get("choices")
         if not isinstance(choices, list) or not choices:
-            logger.error("[AI_SYS] DeepSeek response has no choices")
-            raise RuntimeError("DeepSeek response contains no choices")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter response has no choices")
+            raise RuntimeError("ProxyAPI/OpenRouter response contains no choices")
 
         first_choice = choices[0]
         if not isinstance(first_choice, dict):
-            logger.error("[AI_SYS] DeepSeek first choice is invalid")
-            raise RuntimeError("DeepSeek response choice is invalid")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter first choice is invalid")
+            raise RuntimeError("ProxyAPI/OpenRouter response choice is invalid")
 
         message = first_choice.get("message")
         if not isinstance(message, dict):
-            logger.error("[AI_SYS] DeepSeek response message is invalid")
-            raise RuntimeError("DeepSeek response message is invalid")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter response message is invalid")
+            raise RuntimeError("ProxyAPI/OpenRouter response message is invalid")
 
         content = message.get("content")
         if not isinstance(content, str):
-            logger.error("[AI_SYS] DeepSeek response content is invalid")
-            raise RuntimeError("DeepSeek response content is invalid")
+            logger.error("[AI_SYS] ProxyAPI/OpenRouter response content is invalid")
+            raise RuntimeError("ProxyAPI/OpenRouter response content is invalid")
 
-        logger.debug("[AI_SYS] DeepSeek response text extracted successfully")
+        logger.debug("[AI_SYS] ProxyAPI/OpenRouter response text extracted successfully")
         return content
 
     def _build_and_run(self, repo_dir: Path, tenant_id: int, deployment_id: str) -> tuple[str, str, str, int]:
