@@ -1,9 +1,7 @@
-services:
+﻿services:
   api:
     container_name: iaas-api
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile
+    image: ${APP_IMAGE}
     restart: unless-stopped
     environment:
       APP_NAME: ${APP_NAME:-Hackathon IaaS API}

@@ -6,10 +6,68 @@ on:
       - main
 
 jobs:
-  deploy-app:
+  build-and-push:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_ref: ${{ steps.image.outputs.image_ref }}
+      image_repo: ${{ steps.image.outputs.image_repo }}
     steps:
-      - name: Build and deploy API + Nginx on VPS
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare image reference
+        id: image
+        run: |
+          IMAGE_REPO="ghcr.io/${GITHUB_REPOSITORY,,}/iaas-api"
+          IMAGE_REF="${IMAGE_REPO}:${GITHUB_SHA}"
+          echo "image_repo=${IMAGE_REPO}" >> "$GITHUB_OUTPUT"
+          echo "image_ref=${IMAGE_REF}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.image_ref }}
+            ${{ steps.image.outputs.image_repo }}:latest
+
+  deploy-on-vps:
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy deploy configs to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "infra/docker/docker-compose.app.yml,infra/nginx/nginx.conf,infra/nginx/nginx.https.template.conf"
+          target: "/tmp/iaas-deploy-${{ github.run_id }}"
+          overwrite: true
+
+      - name: Pull image from GHCR and deploy on VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -26,46 +84,53 @@ jobs:
             LETSENCRYPT_EMAIL="${{ secrets.LETSENCRYPT_EMAIL }}"
             JWT_SECRET="${{ secrets.JWT_SECRET }}"
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
+            GHCR_USER="${{ github.actor }}"
+            GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
 
-            if [ -z "${DOMAIN}" ] || [ -z "${LETSENCRYPT_EMAIL}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ]; then
-              echo "Required secrets are missing"
+            if [ -z "${DOMAIN}" ] || [ -z "${LETSENCRYPT_EMAIL}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${IMAGE_REF}" ]; then
+              echo "Required secrets/outputs are missing"
               exit 1
             fi
 
-            APP_COMPOSE_FILE="${APP_DIR}/infra/docker/docker-compose.app.yml"
-            if [ ! -f "${APP_COMPOSE_FILE}" ]; then
-              echo "Missing ${APP_COMPOSE_FILE}. Ensure repository is cloned on VPS."
-              exit 1
-            fi
+            DEPLOY_TMP="/tmp/iaas-deploy-${{ github.run_id }}"
+            mkdir -p "${APP_DIR}/infra/docker" "${APP_DIR}/infra/nginx"
 
-            cd "${APP_DIR}"
+            cp -f "${DEPLOY_TMP}/infra/docker/docker-compose.app.yml" "${APP_DIR}/infra/docker/docker-compose.app.yml"
+            cp -f "${DEPLOY_TMP}/infra/nginx/nginx.conf" "${APP_DIR}/infra/nginx/nginx.conf"
+            cp -f "${DEPLOY_TMP}/infra/nginx/nginx.https.template.conf" "${APP_DIR}/infra/nginx/nginx.https.template.conf"
+            rm -rf "${DEPLOY_TMP}"
 
             docker network inspect iaas-backbone >/dev/null 2>&1 || docker network create iaas-backbone
-
-            git pull --ff-only
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf"; fi
 
-            cp infra/nginx/nginx.conf "${NGINX_RUNTIME_CONF}"
+            cp "${APP_DIR}/infra/nginx/nginx.conf" "${NGINX_RUNTIME_CONF}"
 
             export DATABASE_URL
             export JWT_SECRET
             export DOMAIN
             export LETSENCRYPT_EMAIL
             export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
+            export APP_IMAGE="${IMAGE_REF}"
 
-            docker compose -f "${APP_COMPOSE_FILE}" up -d --build api nginx
+            echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" pull api
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d api nginx
 
-            docker compose -f "${APP_COMPOSE_FILE}" run --rm certbot certonly --webroot \
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" run --rm certbot certonly --webroot \
               --webroot-path=/var/www/certbot \
               --email "${LETSENCRYPT_EMAIL}" \
               --agree-tos \
               --no-eff-email \
-              -d "${DOMAIN}" || true
+              -d "${DOMAIN}" \
+              -d "www.${DOMAIN}" || true
 
-            sed "s/\${DOMAIN}/${DOMAIN}/g" infra/nginx/nginx.https.template.conf > "${NGINX_RUNTIME_CONF}"
-            docker compose -f "${APP_COMPOSE_FILE}" up -d nginx
-            docker compose -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -s reload || true
+            sed "s/\${DOMAIN}/${DOMAIN}/g" "${APP_DIR}/infra/nginx/nginx.https.template.conf" > "${NGINX_RUNTIME_CONF}"
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d nginx
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload || true
 
-            echo "Deploy finished."
+            echo "Deploy finished with image ${IMAGE_REF}."
+
+
