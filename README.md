@@ -32,11 +32,21 @@ Key routes:
 - `GET /flavors`
 - `GET /images`
 - `GET/POST/DELETE /instances*`
+- `POST/GET/DELETE /deployments*`
 - `POST /tasks/execute`
 - `GET /tasks`
 - `GET /tasks/{id}`
 - `GET/POST/PUT/DELETE /scripts*`
 - `GET/POST/PUT/DELETE /networks*`
+
+AI deployment entrypoint rules:
+- `app/config/entrypoint_rules.json`
+- `exact_filenames` is matched by filename.
+- `regex_patterns` supports regex against both filename and relative file path.
+
+Hosted deployment access:
+- Deployed apps are exposed through Nginx at `https://<DOMAIN>/<DEPLOYMENT_PUBLIC_PATH_PREFIX>/<deployment_id>/`.
+- Deleting deployment (`DELETE /api/v1/deployments/{deployment_id}`) removes container, image, and Nginx route.
 
 ## VPS Deployment (Ubuntu)
 
@@ -60,6 +70,7 @@ Required GitHub Secrets:
 - `DOMAIN`
 - `JWT_SECRET`
 - `DATABASE_URL`
+- `GEMINI_API_KEY`
 
 Optional GitHub Variables:
 - `VPS_APP_DIR` (default: `/opt/iaas-hackathon`)
@@ -68,6 +79,10 @@ Optional GitHub Variables:
 - `POSTGRES_IMAGE` (default: `postgres:16-alpine`)
 - `POSTGRES_CONTAINER_NAME` (default: `iaas-postgres`)
 - `NGINX_RUNTIME_CONF` (default: `/tmp/iaas-nginx.conf`)
+- `DEPLOYMENT_PUBLIC_PATH_PREFIX` (default: `hosted`)
+- `DEPLOYMENT_PUBLIC_SCHEME` (default: `https`)
+- `DEPLOYMENT_NETWORK_NAME` (default: `iaas-backbone`)
+- `NGINX_CONTAINER_NAME` (default: `iaas-nginx`)
 
 ## Architecture Diagrams
 

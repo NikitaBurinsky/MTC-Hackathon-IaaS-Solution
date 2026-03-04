@@ -9,6 +9,11 @@ from app.schemas.compute import (
     InstanceOperationRead,
     InstanceRead,
 )
+from app.schemas.deployment import (
+    DeploymentCreateRequest,
+    DeploymentCreateResponse,
+    DeploymentStatusResponse,
+)
 from app.schemas.network import NetworkCreateRequest, NetworkRead, NetworkUpdateRequest
 from app.schemas.script import ScriptCreateRequest, ScriptRead, ScriptUpdateRequest
 from app.schemas.task import TaskDetailResponse, TaskExecuteRequest, TaskRead, TaskRunRead
@@ -17,6 +22,9 @@ from app.schemas.tenant import TenantProfileResponse
 __all__ = [
     "FlavorRead",
     "ImageRead",
+    "DeploymentCreateRequest",
+    "DeploymentCreateResponse",
+    "DeploymentStatusResponse",
     "InstanceActionRequest",
     "InstanceCreateAccepted",
     "InstanceCreateRequest",
@@ -42,4 +50,3 @@ __all__ = [
     "UsageItem",
     "UsageResponse",
 ]
-

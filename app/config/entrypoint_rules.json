@@ -1,0 +1,103 @@
+{
+  "exact_filenames": [
+    "main.py",
+    "app.py",
+    "manage.py",
+    "requirements.txt",
+    "Pipfile",
+    "pyproject.toml",
+    "setup.py",
+    
+    "package.json",
+    "index.js",
+    "app.js",
+    "server.js",
+    "main.ts",
+    "next.config.js",
+    "vite.config.ts",
+    "angular.json",
+    
+    "Program.cs",
+    "Startup.cs",
+    "appsettings.json",
+    
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "Application.java",
+    "Main.java",
+    
+    "go.mod",
+    "main.go",
+    
+    "Cargo.toml",
+    
+    "Gemfile",
+    "config.ru",
+    "Rakefile",
+    
+    "composer.json",
+    "index.php",
+    "artisan",
+    
+    "index.html",
+    "nginx.conf",
+    "Makefile", 
+    "Procfile",
+    
+    "mix.exs",
+    
+    "CMakeLists.txt",
+    "configure.ac",
+    
+    "build.sbt",
+    "project.clj",
+    
+    "pubspec.yaml",
+    
+    "Package.swift",
+    
+    "stack.yaml",
+    "package.yaml",
+    
+    "rebar.config",
+    
+    "shard.yml",
+    
+    "deno.json",
+    "deno.jsonc",
+    "bunfig.toml",
+    
+    "build.zig",
+    
+    "DESCRIPTION",
+    
+    "astro.config.mjs",
+    "astro.config.ts",
+    "nuxt.config.js",
+    "nuxt.config.ts",
+    "svelte.config.js",
+    "svelte.config.ts",
+    "gatsby-config.js",
+    "_config.yml",
+    "hugo.toml",
+    "hugo.yaml",
+    
+    "fly.toml",
+    "app.yaml"
+  ],
+  "regex_patterns": [
+    "^.*\\.csproj$",
+    "^.*\\.sln$",
+    "^.*\\.fsproj$",
+    
+    "^(asgi|wsgi)\\.py$",
+    "^.*requirements.*\\.txt$",
+    
+    "^.*main\\.rs$",
+    "^.*\\.go$",
+    
+    "^docker-compose.*\\.yml$",
+    "^.*\\.env\\.example$"
+  ]
+}
