@@ -49,10 +49,9 @@ class Settings:
             "DEPLOYMENT_NETWORK_NAME", "iaas-backbone"
         )
         self.nginx_container_name = os.getenv("NGINX_CONTAINER_NAME", "iaas-nginx")
-        self.deployment_public_path_prefix = os.getenv(
-            "DEPLOYMENT_PUBLIC_PATH_PREFIX", "hosted"
-        )
-        self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "https")
+        self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "http")
+        self.deployment_tls_cert_path = os.getenv("DEPLOYMENT_TLS_CERT_PATH", "")
+        self.deployment_tls_key_path = os.getenv("DEPLOYMENT_TLS_KEY_PATH", "")
 
         self.PROXYAPI_API_KEY = os.getenv("PROXYAPI_API_KEY", "")
         self.proxyapi_base_url = os.getenv(

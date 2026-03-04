@@ -102,10 +102,10 @@ jobs:
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
-            DEPLOYMENT_PUBLIC_PATH_PREFIX="${{ vars.DEPLOYMENT_PUBLIC_PATH_PREFIX }}"
-            if [ -z "${DEPLOYMENT_PUBLIC_PATH_PREFIX}" ]; then DEPLOYMENT_PUBLIC_PATH_PREFIX="hosted"; fi
             DEPLOYMENT_PUBLIC_SCHEME="${{ vars.DEPLOYMENT_PUBLIC_SCHEME }}"
-            if [ -z "${DEPLOYMENT_PUBLIC_SCHEME}" ]; then DEPLOYMENT_PUBLIC_SCHEME="https"; fi
+            if [ -z "${DEPLOYMENT_PUBLIC_SCHEME}" ]; then DEPLOYMENT_PUBLIC_SCHEME="http"; fi
+            DEPLOYMENT_TLS_CERT_PATH="${{ vars.DEPLOYMENT_TLS_CERT_PATH }}"
+            DEPLOYMENT_TLS_KEY_PATH="${{ vars.DEPLOYMENT_TLS_KEY_PATH }}"
             NGINX_CONTAINER_NAME="${{ vars.NGINX_CONTAINER_NAME }}"
             if [ -z "${NGINX_CONTAINER_NAME}" ]; then NGINX_CONTAINER_NAME="iaas-nginx"; fi
             DEPLOYMENT_NETWORK_NAME="${{ vars.DEPLOYMENT_NETWORK_NAME }}"
@@ -151,8 +151,9 @@ jobs:
             export COOKIE_SECURE
             export CPU_PRICE_PER_VCPU_MIN
             export RAM_PRICE_PER_GB_MIN
-            export DEPLOYMENT_PUBLIC_PATH_PREFIX
             export DEPLOYMENT_PUBLIC_SCHEME
+            export DEPLOYMENT_TLS_CERT_PATH
+            export DEPLOYMENT_TLS_KEY_PATH
             export NGINX_CONTAINER_NAME
             export DEPLOYMENT_NETWORK_NAME
             export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"

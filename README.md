@@ -48,9 +48,24 @@ AI deployment entrypoint rules live in `app/config/entrypoint_rules.json`
 
 ## Hosted Deployments
 
+Hosted routing mode: `subdomain`.
+
 Deployed apps are exposed via Nginx at:
-`https://<DOMAIN>/<DEPLOYMENT_PUBLIC_PATH_PREFIX>/<deployment_id>/`.
+`http://<deployment_id>.<DOMAIN>/`.
 Deleting a deployment removes the container, image, and Nginx route.
+
+Infrastructure requirement:
+- wildcard DNS record `*.DOMAIN` must point to the Nginx host (A/CNAME).
+
+HTTPS support for hosted subdomains:
+- set `DEPLOYMENT_PUBLIC_SCHEME=https`
+- provide wildcard certificate for `*.DOMAIN` (Let’s Encrypt DNS-01 or equivalent)
+- optionally set:
+  - `DEPLOYMENT_TLS_CERT_PATH`
+  - `DEPLOYMENT_TLS_KEY_PATH`
+- if paths are not set, API uses `/etc/letsencrypt/live/<DOMAIN>/fullchain.pem` and `privkey.pem`.
+
+Referer-based routing is intentionally not used as a primary production mechanism.
 
 AI deployment retries are enabled by default:
 - up to 3 attempts per deployment (`AI_DEPLOY_MAX_ATTEMPTS`, hard-capped at 3)
@@ -76,8 +91,9 @@ Optional GitHub Variables:
 - `POSTGRES_IMAGE` (default: `postgres:16-alpine`)
 - `POSTGRES_CONTAINER_NAME` (default: `iaas-postgres`)
 - `NGINX_RUNTIME_CONF` (default: `/tmp/iaas-nginx.conf`)
-- `DEPLOYMENT_PUBLIC_PATH_PREFIX` (default: `hosted`)
-- `DEPLOYMENT_PUBLIC_SCHEME` (default: `https`)
+- `DEPLOYMENT_PUBLIC_SCHEME` (default: `http`)
+- `DEPLOYMENT_TLS_CERT_PATH` (optional)
+- `DEPLOYMENT_TLS_KEY_PATH` (optional)
 - `DEPLOYMENT_NETWORK_NAME` (default: `iaas-backbone`)
 - `NGINX_CONTAINER_NAME` (default: `iaas-nginx`)
 - `PROXYAPI_BASE_URL` (default: `https://api.proxyapi.ru/openrouter/v1`)

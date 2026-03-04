@@ -170,7 +170,8 @@ class DeploymentService:
         "ruby": ("Gemfile", "Gemfile.lock", "config.ru", "Rakefile"),
     }
     ENTRYPOINT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "entrypoint_rules.json"
-    NGINX_DYNAMIC_DIR = "/etc/nginx/deployment-locations"
+    NGINX_DYNAMIC_DIR = "/etc/nginx/deployment-servers"
+    LEGACY_NGINX_DYNAMIC_DIR = "/etc/nginx/deployment-locations"
     MAX_TREE_ENTRIES = 400
     MAX_FILE_CHARS = 8_000
 
@@ -1405,15 +1406,37 @@ class DeploymentService:
             )
             return None
 
-        location_base = self._deployment_location_base(deployment_id)
-        location_block = self._render_nginx_location_block(location_base, container_name, container_port)
+        scheme = self.settings.deployment_public_scheme.strip().lower() or "http"
+        public_host = f"{deployment_id}.{self.settings.domain}"
+        tls_cert_path, tls_key_path = self._resolve_deployment_tls_paths(scheme)
+        server_block = self._render_nginx_server_block(
+            server_name=public_host,
+            container_name=container_name,
+            container_port=container_port,
+            scheme=scheme,
+            tls_cert_path=tls_cert_path,
+            tls_key_path=tls_key_path,
+        )
         logger.info(
-            "[AI_SYS] Configuring public access deployment_id=%s location_base=%s upstream=%s:%s",
+            "[AI_SYS] Configuring public access deployment_id=%s public_host=%s scheme=%s upstream=%s:%s",
             deployment_id,
-            location_base,
+            public_host,
+            scheme,
             container_name,
             container_port,
         )
+        if scheme == "https":
+            logger.warning(
+                "[AI_SYS] HTTPS subdomain routing requires wildcard DNS and wildcard certificate public_host=%s cert=%s key=%s",
+                public_host,
+                tls_cert_path,
+                tls_key_path,
+            )
+        else:
+            logger.warning(
+                "[AI_SYS] Subdomain routing requires wildcard DNS (*.domain) to point to nginx host public_host=%s",
+                public_host,
+            )
 
         client = docker.from_env()
         try:
@@ -1428,7 +1451,7 @@ class DeploymentService:
                 raise RuntimeError("Failed to prepare nginx dynamic config directory")
 
             config_name = f"{deployment_id}.conf"
-            self._put_text_file(nginx_container, self.NGINX_DYNAMIC_DIR, config_name, location_block)
+            self._put_text_file(nginx_container, self.NGINX_DYNAMIC_DIR, config_name, server_block)
             self._reload_nginx(nginx_container)
         except docker.errors.NotFound as exc:
             logger.error(
@@ -1444,15 +1467,13 @@ class DeploymentService:
                 deployment_id,
             )
 
-        scheme = self.settings.deployment_public_scheme
         logger.info(
-            "[AI_SYS] Public access configured deployment_id=%s url=%s://%s%s/",
+            "[AI_SYS] Public access configured deployment_id=%s url=%s://%s/",
             deployment_id,
             scheme,
-            self.settings.domain,
-            location_base,
+            public_host,
         )
-        return f"{scheme}://{self.settings.domain}{location_base}/"
+        return f"{scheme}://{public_host}/"
 
     def _cleanup_resources(self, record: DeploymentRecord) -> None:
         logger.info(
@@ -1543,6 +1564,7 @@ class DeploymentService:
                 return
 
             nginx_container.exec_run(["rm", "-f", f"{self.NGINX_DYNAMIC_DIR}/{deployment_id}.conf"])
+            nginx_container.exec_run(["rm", "-f", f"{self.LEGACY_NGINX_DYNAMIC_DIR}/{deployment_id}.conf"])
             self._reload_nginx(nginx_container)
             logger.info("[AI_SYS] Public access removed deployment_id=%s", deployment_id)
         finally:
@@ -1579,31 +1601,71 @@ class DeploymentService:
             return output.decode("utf-8", errors="replace").strip()
         return str(output).strip()
 
-    def _deployment_location_base(self, deployment_id: str) -> str:
-        prefix = self.settings.deployment_public_path_prefix.strip("/")
-        if not prefix:
-            prefix = "hosted"
-        logger.debug(
-            "[AI_SYS] Deployment location base resolved deployment_id=%s prefix=%s",
-            deployment_id,
-            prefix,
-        )
-        return f"/{prefix}/{deployment_id}"
+    def _resolve_deployment_tls_paths(self, scheme: str) -> tuple[str | None, str | None]:
+        if scheme != "https":
+            return None, None
 
-    def _render_nginx_location_block(self, location_base: str, container_name: str, container_port: int) -> str:
+        configured_cert = self.settings.deployment_tls_cert_path.strip()
+        configured_key = self.settings.deployment_tls_key_path.strip()
+        if configured_cert and configured_key:
+            return configured_cert, configured_key
+        if configured_cert or configured_key:
+            raise RuntimeError("Both DEPLOYMENT_TLS_CERT_PATH and DEPLOYMENT_TLS_KEY_PATH must be set for HTTPS")
+
+        domain = self.settings.domain.strip()
+        if not domain:
+            raise RuntimeError("DOMAIN is required for HTTPS hosted deployments")
+
         return (
-            f"location = {location_base} {{\n"
-            f"    return 301 {location_base}/;\n"
-            "}\n\n"
-            f"location ^~ {location_base}/ {{\n"
-            f"    proxy_pass http://{container_name}:{container_port}/;\n"
-            "    proxy_http_version 1.1;\n"
-            "    proxy_set_header Host $host;\n"
-            "    proxy_set_header X-Real-IP $remote_addr;\n"
-            "    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
-            "    proxy_set_header X-Forwarded-Proto $scheme;\n"
-            "    proxy_set_header Upgrade $http_upgrade;\n"
-            "    proxy_set_header Connection \"upgrade\";\n"
+            f"/etc/letsencrypt/live/{domain}/fullchain.pem",
+            f"/etc/letsencrypt/live/{domain}/privkey.pem",
+        )
+
+    def _render_nginx_server_block(
+        self,
+        server_name: str,
+        container_name: str,
+        container_port: int,
+        scheme: str,
+        tls_cert_path: str | None,
+        tls_key_path: str | None,
+    ) -> str:
+        proxy_location = (
+            "    location / {\n"
+            f"        proxy_pass http://{container_name}:{container_port};\n"
+            "        proxy_http_version 1.1;\n"
+            "        proxy_set_header Host $host;\n"
+            "        proxy_set_header X-Real-IP $remote_addr;\n"
+            "        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n"
+            "        proxy_set_header X-Forwarded-Proto $scheme;\n"
+            "        proxy_set_header Upgrade $http_upgrade;\n"
+            "        proxy_set_header Connection \"upgrade\";\n"
+            "    }\n"
+        )
+        if scheme == "https":
+            if not tls_cert_path or not tls_key_path:
+                raise RuntimeError("TLS certificate paths are required for HTTPS hosted deployments")
+            return (
+                "server {\n"
+                "    listen 80;\n"
+                f"    server_name {server_name};\n"
+                "    return 301 https://$host$request_uri;\n"
+                "}\n\n"
+                "server {\n"
+                "    listen 443 ssl http2;\n"
+                f"    server_name {server_name};\n"
+                f"    ssl_certificate {tls_cert_path};\n"
+                f"    ssl_certificate_key {tls_key_path};\n"
+                "    ssl_protocols TLSv1.2 TLSv1.3;\n"
+                "    ssl_prefer_server_ciphers on;\n"
+                f"{proxy_location}"
+                "}\n"
+            )
+        return (
+            "server {\n"
+            "    listen 80;\n"
+            f"    server_name {server_name};\n\n"
+            f"{proxy_location}"
             "}\n"
         )
 
