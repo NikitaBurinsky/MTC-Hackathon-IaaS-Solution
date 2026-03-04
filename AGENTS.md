@@ -28,6 +28,7 @@
 ## Branching & Commit Workflow
 - Work on the long-lived `dev` branch; do not develop directly on `main`.
 - Create short-lived feature branches off `dev` (e.g., `feature/auth-email`, `fix/billing-quota`).
+- DO NOT create short-lived branches if the changes are small enough (can be done in a single small, concise, commit)
 - Rebase feature branches onto `dev` before integration, then merge into `dev` with `--ff-only`.
 - Keep `dev` current by rebasing onto `origin/main` (`git fetch origin` then `git rebase origin/main`); when releasing, fast-forward `main` to `dev`.
 - Git history favors short, descriptive messages (e.g., `fix .envrc`, `Split workflow: build/push GHCR image & deploy`).
