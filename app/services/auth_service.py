@@ -41,28 +41,25 @@ class AuthService:
             select(Tenant).where(Tenant.name == normalized_tenant)
         ).first()
         if existing_tenant:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Tenant name already exists",
-            )
+            tenant = existing_tenant
+        else:
+            settings = get_settings()
+            plan = session.exec(
+                select(Plan).where(Plan.name == settings.default_plan_name)
+            ).first()
+            if not plan:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Default plan is not configured",
+                )
 
-        settings = get_settings()
-        plan = session.exec(
-            select(Plan).where(Plan.name == settings.default_plan_name)
-        ).first()
-        if not plan:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Default plan is not configured",
+            tenant = Tenant(
+                name=normalized_tenant,
+                balance_credits=settings.initial_credits,
+                plan_id=plan.id,
             )
-
-        tenant = Tenant(
-            name=normalized_tenant,
-            balance_credits=settings.initial_credits,
-            plan_id=plan.id,
-        )
-        session.add(tenant)
-        session.flush()
+            session.add(tenant)
+            session.flush()
 
         user = User(
             tenant_id=tenant.id,
