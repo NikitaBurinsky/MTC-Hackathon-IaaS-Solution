@@ -5,7 +5,7 @@ class RegisterRequest(SQLModel):
     name: str
     email: str
     password: str
-    workspace_name: str
+    tenant_name: str
 
 
 class RegisterResponse(SQLModel):

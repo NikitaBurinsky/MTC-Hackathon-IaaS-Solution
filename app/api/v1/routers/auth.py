@@ -34,7 +34,7 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
         name=payload.name,
         email=payload.email,
         password=payload.password,
-        workspace_name=payload.workspace_name,
+        tenant_name=payload.tenant_name,
     )
     token = create_access_token(subject=str(user.id), tenant_id=tenant.id)
     return RegisterResponse(

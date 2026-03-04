@@ -7,14 +7,14 @@ from app.models import Plan, Tenant, User
 
 
 class AuthService:
-    def register(self, session: Session, name: str, email: str, password: str, workspace_name: str) -> tuple[User, Tenant]:
+    def register(self, session: Session, name: str, email: str, password: str, tenant_name: str) -> tuple[User, Tenant]:
         normalized_name = name.strip()
         normalized_email = email.strip()
-        normalized_workspace = workspace_name.strip()
-        if not normalized_name or not normalized_workspace:
+        normalized_tenant = tenant_name.strip()
+        if not normalized_name or not normalized_tenant:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Username and workspace name are required",
+                detail="Username and tenant name are required",
             )
 
         existing = session.exec(select(User).where(User.email == normalized_email)).first()
@@ -31,11 +31,11 @@ class AuthService:
                 detail="User with this name already exists",
             )
 
-        existing_workspace = session.exec(select(Tenant).where(Tenant.name == normalized_workspace)).first()
-        if existing_workspace:
+        existing_tenant = session.exec(select(Tenant).where(Tenant.name == normalized_tenant)).first()
+        if existing_tenant:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Workspace name already exists",
+                detail="Tenant name already exists",
             )
 
         settings = get_settings()
@@ -47,7 +47,7 @@ class AuthService:
             )
 
         tenant = Tenant(
-            name=normalized_workspace,
+            name=normalized_tenant,
             balance_credits=settings.initial_credits,
             plan_id=plan.id,
         )
