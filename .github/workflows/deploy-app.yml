@@ -1,4 +1,4 @@
-﻿name: Deploy App
+name: Deploy App
 
 on:
   push:
@@ -101,6 +101,9 @@ jobs:
             cp -f "${DEPLOY_TMP}/infra/nginx/nginx.https.template.conf" "${APP_DIR}/infra/nginx/nginx.https.template.conf"
             rm -rf "${DEPLOY_TMP}"
 
+            sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/infra/nginx/nginx.conf"
+            sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/infra/nginx/nginx.https.template.conf"
+
             docker network inspect iaas-backbone >/dev/null 2>&1 || docker network create iaas-backbone
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
@@ -125,11 +128,13 @@ jobs:
               --agree-tos \
               --no-eff-email \
               -d "${DOMAIN}" \
-              -d "www.${DOMAIN}" || true
+              -d "www.${DOMAIN}"
 
             sed "s/\${DOMAIN}/${DOMAIN}/g" "${APP_DIR}/infra/nginx/nginx.https.template.conf" > "${NGINX_RUNTIME_CONF}"
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d nginx
-            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload || true
+            sed -i '1s/^\xEF\xBB\xBF//' "${NGINX_RUNTIME_CONF}"
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -t
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload
 
             echo "Deploy finished with image ${IMAGE_REF}."
 
