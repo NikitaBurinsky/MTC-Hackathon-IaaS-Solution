@@ -14,6 +14,7 @@ from app.schemas.compute import (
     InstanceOperationRead,
     InstanceRead,
 )
+from app.schemas.dash import DashTenant, DashUser, DashUserResponse
 from app.schemas.deployment import (
     DeploymentCreateRequest,
     DeploymentCreateResponse,
@@ -35,6 +36,9 @@ __all__ = [
     "DeploymentCreateRequest",
     "DeploymentCreateResponse",
     "DeploymentStatusResponse",
+    "DashTenant",
+    "DashUser",
+    "DashUserResponse",
     "InstanceActionRequest",
     "InstanceCreateAccepted",
     "InstanceCreateRequest",
