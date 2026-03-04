@@ -87,6 +87,13 @@ jobs:
             COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
             COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
             GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
+            GEMINI_PROXY_URL="${{ secrets.GEMINI_PROXY_URL }}"
+            GEMINI_PROXY_SCHEME="${{ secrets.GEMINI_PROXY_SCHEME }}"
+            if [ -z "${GEMINI_PROXY_SCHEME}" ]; then GEMINI_PROXY_SCHEME="http"; fi
+            GEMINI_PROXY_HOST="${{ secrets.GEMINI_PROXY_HOST }}"
+            GEMINI_PROXY_PORT="${{ secrets.GEMINI_PROXY_PORT }}"
+            GEMINI_PROXY_USERNAME="${{ secrets.GEMINI_PROXY_USERNAME }}"
+            GEMINI_PROXY_PASSWORD="${{ secrets.GEMINI_PROXY_PASSWORD }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
@@ -127,6 +134,12 @@ jobs:
             export DATABASE_URL
             export JWT_SECRET
             export GEMINI_API_KEY
+            export GEMINI_PROXY_URL
+            export GEMINI_PROXY_SCHEME
+            export GEMINI_PROXY_HOST
+            export GEMINI_PROXY_PORT
+            export GEMINI_PROXY_USERNAME
+            export GEMINI_PROXY_PASSWORD
             export DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE

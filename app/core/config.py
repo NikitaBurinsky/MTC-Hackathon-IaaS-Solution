@@ -48,6 +48,12 @@ class Settings:
         self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "https")
 
         self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+        self.gemini_proxy_url = os.getenv("GEMINI_PROXY_URL", "")
+        self.gemini_proxy_scheme = os.getenv("GEMINI_PROXY_SCHEME", "http")
+        self.gemini_proxy_host = os.getenv("GEMINI_PROXY_HOST", "")
+        self.gemini_proxy_port = os.getenv("GEMINI_PROXY_PORT", "")
+        self.gemini_proxy_username = os.getenv("GEMINI_PROXY_USERNAME", "")
+        self.gemini_proxy_password = os.getenv("GEMINI_PROXY_PASSWORD", "")
 
 
 @lru_cache

@@ -71,6 +71,10 @@ Required GitHub Secrets:
 - `JWT_SECRET`
 - `DATABASE_URL`
 - `GEMINI_API_KEY`
+- `GEMINI_PROXY_URL` (if Gemini must be called through authenticated proxy)
+- `GEMINI_PROXY_USERNAME` / `GEMINI_PROXY_PASSWORD` (if proxy URL is assembled from parts)
+- `GEMINI_PROXY_SCHEME` / `GEMINI_PROXY_HOST` / `GEMINI_PROXY_PORT` (if proxy URL is assembled from parts)
+  - `GEMINI_PROXY_URL` has priority over split host/port/login/password settings.
 
 Optional GitHub Variables:
 - `VPS_APP_DIR` (default: `/opt/iaas-hackathon`)

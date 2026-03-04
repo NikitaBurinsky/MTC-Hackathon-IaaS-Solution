@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
+from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -374,6 +375,7 @@ class DeploymentService:
         if not self.settings.GEMINI_API_KEY:
             raise RuntimeError("GEMINI_API_KEY is not configured")
 
+        self._configure_gemini_proxy()
         genai.configure(api_key=self.settings.GEMINI_API_KEY)
         model = genai.GenerativeModel("gemini-flash-latest")
 
@@ -409,6 +411,43 @@ class DeploymentService:
         if "FROM" not in dockerfile_text.upper():
             raise RuntimeError("Gemini returned invalid Dockerfile content")
         return dockerfile_text
+
+    def _configure_gemini_proxy(self) -> None:
+        proxy_url = self._build_gemini_proxy_url()
+        if not proxy_url:
+            return
+
+        os.environ["HTTP_PROXY"] = proxy_url
+        os.environ["HTTPS_PROXY"] = proxy_url
+        os.environ["http_proxy"] = proxy_url
+        os.environ["https_proxy"] = proxy_url
+
+    def _build_gemini_proxy_url(self) -> str | None:
+        direct_proxy_url = self.settings.gemini_proxy_url.strip()
+        if direct_proxy_url:
+            return direct_proxy_url
+
+        proxy_host = self.settings.gemini_proxy_host.strip()
+        if not proxy_host:
+            return None
+
+        proxy_scheme = self.settings.gemini_proxy_scheme.strip() or "http"
+        proxy_port = self.settings.gemini_proxy_port.strip()
+        proxy_username = self.settings.gemini_proxy_username
+        proxy_password = self.settings.gemini_proxy_password
+
+        auth_part = ""
+        if proxy_username and not proxy_password:
+            raise RuntimeError("GEMINI proxy password is required when username is configured")
+        if proxy_password and not proxy_username:
+            raise RuntimeError("GEMINI proxy username is required when password is configured")
+        if proxy_username:
+            encoded_username = quote(proxy_username, safe="")
+            encoded_password = quote(proxy_password, safe="")
+            auth_part = f"{encoded_username}:{encoded_password}@"
+
+        port_part = f":{proxy_port}" if proxy_port else ""
+        return f"{proxy_scheme}://{auth_part}{proxy_host}{port_part}"
 
     def _extract_text(self, response: object) -> str:
         text = getattr(response, "text", None)
