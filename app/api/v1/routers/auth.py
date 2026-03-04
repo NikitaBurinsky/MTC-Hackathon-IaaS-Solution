@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlmodel import Session
 
 from app.core.config import get_settings
@@ -22,28 +22,6 @@ def set_auth_cookie(response: Response, token: str) -> None:
         max_age=settings.access_token_expire_minutes * 60,
         path="/",
     )
-
-
-async def get_login_payload(
-    request: Request,
-    email: str | None = Form(default=None),
-    password: str | None = Form(default=None),
-) -> LoginRequest:
-    if email is None and password is None:
-        content_type = request.headers.get("content-type", "")
-        if content_type.startswith("application/json"):
-            data = await request.json()
-        else:
-            data = dict(await request.form())
-        email = data.get("email") or data.get("username")
-        password = data.get("password")
-
-    if not email or not password:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Email and password required",
-        )
-    return LoginRequest(email=email, password=password)
 
 
 @router.post(
@@ -74,8 +52,8 @@ def register(
 
 @router.post("/login", response_model=TokenResponse)
 def login(
+    payload: LoginRequest,
     response: Response,
-    payload: LoginRequest = Depends(get_login_payload),
     session: Session = Depends(get_session),
 ):
     token = auth_service.login(

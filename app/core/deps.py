@@ -1,16 +1,16 @@
 from fastapi import Cookie, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlmodel import Session
 
 from app.core.security import decode_access_token
 from app.db.session import get_session
 from app.models import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_current_user(
-    token: str | None = Depends(oauth2_scheme),
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     access_token: str | None = Cookie(default=None),
     session: Session = Depends(get_session),
 ) -> User:
@@ -20,7 +20,7 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    token = token or access_token
+    token = credentials.credentials if credentials else access_token
     if not token:
         raise credentials_error
 
