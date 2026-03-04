@@ -23,6 +23,12 @@
 - Manual validation lives in `docs/manual-test-checklist.md` and is executed via Swagger at `/docs`.
 - If you introduce automated tests, document the framework and the run command here.
 
+## Task Intake & Clarifications
+- Check `TODO.md` for pending changes and confirm which items to implement before starting.
+- Ask focused questions about implementation details (inputs/outputs, edge cases, constraints) when TODOs are ambiguous.
+- Be skeptical of scope creep; prefer minimal changes that meet the requirement and avoid overengineering.
+- When architectural choices are unclear, ask about expectations (e.g., DB schema impact, service boundaries, provider usage) and offer 2-3 options with tradeoffs.
+
 ## Branching & Commit Workflow
 - Create a short-lived branch off `main` for each change (e.g., `docs/agents-guidelines`, `fix/billing-quota`).
 - Git history favors short, descriptive messages (e.g., `fix .envrc`, `Split workflow: build/push GHCR image & deploy`).
