@@ -1,4 +1,4 @@
-name: DB Bootstrap
+﻿name: DB Bootstrap
 
 on:
   workflow_dispatch:
@@ -7,7 +7,7 @@ jobs:
   bootstrap-db:
     runs-on: ubuntu-latest
     steps:
-      - name: Bootstrap PostgreSQL on VPS
+      - name: Recreate PostgreSQL container on VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -15,9 +15,66 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
-            APP_DIR="${{ vars.VPS_APP_DIR }}"
-            if [ -z "${APP_DIR}" ]; then APP_DIR="/opt/iaas-hackathon"; fi
-            export APP_DIR
-            export POSTGRES_USER="${{ vars.POSTGRES_USER }}"
-            export POSTGRES_DB="${{ vars.POSTGRES_DB }}"
-            bash "${APP_DIR}/scripts/vps/bootstrap_db.sh"
+            set -euo pipefail
+
+            POSTGRES_CONTAINER_NAME="${{ vars.POSTGRES_CONTAINER_NAME }}"
+            if [ -z "${POSTGRES_CONTAINER_NAME}" ]; then POSTGRES_CONTAINER_NAME="iaas-postgres"; fi
+
+            POSTGRES_IMAGE="${{ vars.POSTGRES_IMAGE }}"
+            if [ -z "${POSTGRES_IMAGE}" ]; then POSTGRES_IMAGE="postgres:16-alpine"; fi
+
+            POSTGRES_DB="${{ vars.POSTGRES_DB }}"
+            if [ -z "${POSTGRES_DB}" ]; then POSTGRES_DB="iaas"; fi
+
+            POSTGRES_USER="${{ vars.POSTGRES_USER }}"
+            if [ -z "${POSTGRES_USER}" ]; then POSTGRES_USER="postgres"; fi
+
+            POSTGRES_PASSWORD="${{ secrets.POSTGRES_PASSWORD }}"
+            if [ -z "${POSTGRES_PASSWORD}" ]; then
+              echo "POSTGRES_PASSWORD secret is required"
+              exit 1
+            fi
+
+            POSTGRES_VOLUME_NAME="iaas-postgres-data"
+
+            docker network inspect iaas-backbone >/dev/null 2>&1 || docker network create iaas-backbone
+
+            if docker ps -a --format '{{.Names}}' | grep -q "^${POSTGRES_CONTAINER_NAME}$"; then
+              docker rm -f "${POSTGRES_CONTAINER_NAME}"
+            fi
+
+            if docker volume ls --format '{{.Name}}' | grep -q "^${POSTGRES_VOLUME_NAME}$"; then
+              docker volume rm -f "${POSTGRES_VOLUME_NAME}"
+            fi
+
+            docker pull "${POSTGRES_IMAGE}"
+
+            docker run -d \
+              --name "${POSTGRES_CONTAINER_NAME}" \
+              --restart unless-stopped \
+              -e POSTGRES_DB="${POSTGRES_DB}" \
+              -e POSTGRES_USER="${POSTGRES_USER}" \
+              -e POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
+              -v "${POSTGRES_VOLUME_NAME}:/var/lib/postgresql/data" \
+              -p 5432:5432 \
+              --network iaas-backbone \
+              --network-alias postgres \
+              --health-cmd "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" \
+              --health-interval 10s \
+              --health-timeout 5s \
+              --health-retries 10 \
+              "${POSTGRES_IMAGE}"
+
+            echo "Waiting for PostgreSQL health..."
+            for i in $(seq 1 30); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' "${POSTGRES_CONTAINER_NAME}" 2>/dev/null || echo "starting")
+              if [ "${status}" = "healthy" ]; then
+                echo "PostgreSQL is healthy."
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "PostgreSQL health check timeout."
+            docker logs "${POSTGRES_CONTAINER_NAME}" || true
+            exit 1

@@ -1,4 +1,4 @@
-name: Deploy App
+﻿name: Deploy App
 
 on:
   push:
@@ -9,7 +9,7 @@ jobs:
   deploy-app:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy API + Nginx to VPS
+      - name: Build and deploy API + Nginx on VPS
         uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -17,11 +17,55 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: ${{ secrets.VPS_PORT }}
           script: |
+            set -euo pipefail
+
             APP_DIR="${{ vars.VPS_APP_DIR }}"
             if [ -z "${APP_DIR}" ]; then APP_DIR="/opt/iaas-hackathon"; fi
-            export APP_DIR
-            export DOMAIN="${{ secrets.DOMAIN }}"
-            export LETSENCRYPT_EMAIL="${{ secrets.LETSENCRYPT_EMAIL }}"
-            export JWT_SECRET="${{ secrets.JWT_SECRET }}"
-            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
-            bash "${APP_DIR}/scripts/vps/deploy_app.sh"
+
+            DOMAIN="${{ secrets.DOMAIN }}"
+            LETSENCRYPT_EMAIL="${{ secrets.LETSENCRYPT_EMAIL }}"
+            JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            DATABASE_URL="${{ secrets.DATABASE_URL }}"
+
+            if [ -z "${DOMAIN}" ] || [ -z "${LETSENCRYPT_EMAIL}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ]; then
+              echo "Required secrets are missing"
+              exit 1
+            fi
+
+            APP_COMPOSE_FILE="${APP_DIR}/infra/docker/docker-compose.app.yml"
+            if [ ! -f "${APP_COMPOSE_FILE}" ]; then
+              echo "Missing ${APP_COMPOSE_FILE}. Ensure repository is cloned on VPS."
+              exit 1
+            fi
+
+            cd "${APP_DIR}"
+
+            docker network inspect iaas-backbone >/dev/null 2>&1 || docker network create iaas-backbone
+
+            git pull --ff-only
+
+            NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
+            if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf"; fi
+
+            cp infra/nginx/nginx.conf "${NGINX_RUNTIME_CONF}"
+
+            export DATABASE_URL
+            export JWT_SECRET
+            export DOMAIN
+            export LETSENCRYPT_EMAIL
+            export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
+
+            docker compose -f "${APP_COMPOSE_FILE}" up -d --build api nginx
+
+            docker compose -f "${APP_COMPOSE_FILE}" run --rm certbot certonly --webroot \
+              --webroot-path=/var/www/certbot \
+              --email "${LETSENCRYPT_EMAIL}" \
+              --agree-tos \
+              --no-eff-email \
+              -d "${DOMAIN}" || true
+
+            sed "s/\${DOMAIN}/${DOMAIN}/g" infra/nginx/nginx.https.template.conf > "${NGINX_RUNTIME_CONF}"
+            docker compose -f "${APP_COMPOSE_FILE}" up -d nginx
+            docker compose -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -s reload || true
+
+            echo "Deploy finished."

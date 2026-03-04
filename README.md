@@ -1,4 +1,4 @@
-# IaaS Cloud Platform MVP (Hackathon)
+﻿# IaaS Cloud Platform MVP (Hackathon)
 
 FastAPI-based IaaS MVP with:
 - Multi-tenant isolation via JWT `tenant_id`
@@ -36,15 +36,37 @@ Key routes:
 - `GET/POST/PUT/DELETE /scripts*`
 - `GET/POST/PUT/DELETE /networks*`
 
-## VPS Deployment
+## VPS Deployment (Ubuntu)
 
 Workflows:
 - `.github/workflows/db-bootstrap.yml` (manual trigger)
 - `.github/workflows/deploy-app.yml` (auto on push to `main`)
 
-Scripts:
-- `scripts/vps/bootstrap_db.sh`
-- `scripts/vps/deploy_app.sh`
+Notes:
+- Workflow logic is fully inline (no `.sh` script execution).
+- DB bootstrap recreates PostgreSQL from scratch each run:
+  - removes old container
+  - removes old named volume
+  - starts a brand new Postgres container
+
+Required GitHub Secrets:
+- `VPS_HOST`
+- `VPS_USER`
+- `VPS_SSH_KEY`
+- `VPS_PORT`
+- `POSTGRES_PASSWORD`
+- `DOMAIN`
+- `LETSENCRYPT_EMAIL`
+- `JWT_SECRET`
+- `DATABASE_URL`
+
+Optional GitHub Variables:
+- `VPS_APP_DIR` (default: `/opt/iaas-hackathon`)
+- `POSTGRES_USER` (default: `postgres`)
+- `POSTGRES_DB` (default: `iaas`)
+- `POSTGRES_IMAGE` (default: `postgres:16-alpine`)
+- `POSTGRES_CONTAINER_NAME` (default: `iaas-postgres`)
+- `NGINX_RUNTIME_CONF` (default: `/tmp/iaas-nginx.conf`)
 
 ## Architecture Diagrams
 
