@@ -61,6 +61,13 @@ class DockerProvider:
                 return ip_address
         return None
 
+    def get_instance_stats(self, container_id: str) -> dict | None:
+        try:
+            container = self.client.containers.get(container_id)
+        except self._docker_module.errors.NotFound:
+            return None
+        return container.stats(stream=False)
+
     def exec_script(self, container_id: str, script_body: str) -> tuple[int, str, str]:
         container = self.client.containers.get(container_id)
         result = container.exec_run(cmd=["/bin/sh", "-c", script_body], demux=True)

@@ -41,6 +41,9 @@ class Settings:
         self.secondary_image_ref = os.getenv("SECONDARY_IMAGE_REF", "alpine:3.20")
         self.secondary_image_name = os.getenv("SECONDARY_IMAGE_NAME", "Alpine 3.20")
 
+        self.cpu_price_per_vcpu_min = float(os.getenv("CPU_PRICE_PER_VCPU_MIN", "1"))
+        self.ram_price_per_gb_min = float(os.getenv("RAM_PRICE_PER_GB_MIN", "5"))
+
         self.domain = os.getenv("DOMAIN", "")
         self.deployment_network_name = os.getenv("DEPLOYMENT_NETWORK_NAME", "iaas-backbone")
         self.nginx_container_name = os.getenv("NGINX_CONTAINER_NAME", "iaas-nginx")

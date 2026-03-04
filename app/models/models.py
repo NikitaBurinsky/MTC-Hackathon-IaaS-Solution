@@ -159,6 +159,20 @@ class ResourceUsageLog(SQLModel, table=True):
     tenant_id: int = Field(foreign_key="tenants.id", index=True, nullable=False)
     instance_id: int = Field(foreign_key="instances.id", index=True, nullable=False)
     flavor_id: int = Field(foreign_key="flavors.id", nullable=False)
+    cpu_usage_vcpu: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
+    ram_usage_gb: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
+    base_price_per_min: float = Field(
+        default=0.0, sa_column=Column(Float, nullable=False)
+    )
+    cpu_charge: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
+    ram_charge: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
+    total_charge: float = Field(default=0.0, sa_column=Column(Float, nullable=False))
+    slice_started_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True)
+    )
+    slice_ended_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True)
+    )
     started_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
     )

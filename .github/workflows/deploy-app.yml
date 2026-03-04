@@ -100,6 +100,8 @@ jobs:
             DEEPSEEK_PROXY_PORT="${{ secrets.DEEPSEEK_PROXY_PORT }}"
             DEEPSEEK_PROXY_USERNAME="${{ secrets.DEEPSEEK_PROXY_USERNAME }}"
             DEEPSEEK_PROXY_PASSWORD="${{ secrets.DEEPSEEK_PROXY_PASSWORD }}"
+            CPU_PRICE_PER_VCPU_MIN="${{ vars.CPU_PRICE_PER_VCPU_MIN }}"
+            RAM_PRICE_PER_GB_MIN="${{ vars.RAM_PRICE_PER_GB_MIN }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
@@ -134,6 +136,8 @@ jobs:
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf/nginx.conf"; fi
             if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="lax"; fi
             if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
+            if [ -z "${CPU_PRICE_PER_VCPU_MIN}" ]; then CPU_PRICE_PER_VCPU_MIN="1"; fi
+            if [ -z "${RAM_PRICE_PER_GB_MIN}" ]; then RAM_PRICE_PER_GB_MIN="5"; fi
 
             cp "${APP_DIR}/infra/nginx/nginx.conf" "${NGINX_RUNTIME_CONF}"
 
@@ -152,6 +156,8 @@ jobs:
             export DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE
+            export CPU_PRICE_PER_VCPU_MIN
+            export RAM_PRICE_PER_GB_MIN
             export DEPLOYMENT_PUBLIC_PATH_PREFIX
             export DEPLOYMENT_PUBLIC_SCHEME
             export NGINX_CONTAINER_NAME

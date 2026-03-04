@@ -10,17 +10,21 @@ from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.init_db import init_db
 from app.services import ComputeService
+from app.services.billing_scheduler import BillingScheduler
 from app.schemas import ErrorResponse
 
 settings = get_settings()
 compute_service = ComputeService()
+billing_scheduler = BillingScheduler()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     init_db()
     compute_service.ensure_docker_available()
+    billing_scheduler.start()
     yield
+    billing_scheduler.stop()
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)

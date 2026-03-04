@@ -33,7 +33,12 @@ def get_usage(
             started_at=item.started_at,
             ended_at=item.ended_at,
             duration_sec=item.duration_sec,
-            credits_charged=item.credits_charged,
+            cpu_usage_vcpu=item.cpu_usage_vcpu,
+            ram_usage_gb=item.ram_usage_gb,
+            base_price_per_min=item.base_price_per_min,
+            cpu_charge=item.cpu_charge,
+            ram_charge=item.ram_charge,
+            total_charge=item.total_charge,
         )
         for item in usage["items"]
     ]
