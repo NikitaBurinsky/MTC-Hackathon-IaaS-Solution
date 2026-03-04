@@ -71,6 +71,17 @@ class ComputeService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Image not found"
             )
 
+        existing = session.exec(
+            select(Instance).where(
+                Instance.tenant_id == tenant_id, Instance.name == name
+            ),
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Instance name already exists",
+            )
+
         self.billing_service.assert_can_allocate(session, tenant_id, flavor)
 
         instance = Instance(
