@@ -240,3 +240,6 @@ class Network(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
     )
+
+
+Index("ix_networks_tenant_name", Network.tenant_id, Network.name, unique=True)
