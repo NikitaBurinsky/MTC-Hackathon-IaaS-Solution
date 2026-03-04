@@ -24,8 +24,8 @@ class Settings:
         self.cookie_secure = _env_bool("COOKIE_SECURE", "false")
 
         self.default_plan_name = os.getenv("DEFAULT_PLAN_NAME", "starter")
-        self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "1"))
-        self.default_plan_ram_mb = int(os.getenv("DEFAULT_PLAN_RAM_MB", "1024"))
+        self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "4"))
+        self.default_plan_ram_mb = int(os.getenv("DEFAULT_PLAN_RAM_MB", "4096"))
         self.initial_credits = float(os.getenv("INITIAL_CREDITS", "100"))
 
         self.default_flavor_name = os.getenv("DEFAULT_FLAVOR_NAME", "t2.micro")
@@ -45,13 +45,19 @@ class Settings:
         self.ram_price_per_gb_min = float(os.getenv("RAM_PRICE_PER_GB_MIN", "5"))
 
         self.domain = os.getenv("DOMAIN", "")
-        self.deployment_network_name = os.getenv("DEPLOYMENT_NETWORK_NAME", "iaas-backbone")
+        self.deployment_network_name = os.getenv(
+            "DEPLOYMENT_NETWORK_NAME", "iaas-backbone"
+        )
         self.nginx_container_name = os.getenv("NGINX_CONTAINER_NAME", "iaas-nginx")
-        self.deployment_public_path_prefix = os.getenv("DEPLOYMENT_PUBLIC_PATH_PREFIX", "hosted")
+        self.deployment_public_path_prefix = os.getenv(
+            "DEPLOYMENT_PUBLIC_PATH_PREFIX", "hosted"
+        )
         self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "https")
 
         self.DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-        self.deepseek_api_base_url = os.getenv("DEEPSEEK_API_BASE_URL", "https://api.deepseek.com")
+        self.deepseek_api_base_url = os.getenv(
+            "DEEPSEEK_API_BASE_URL", "https://api.deepseek.com"
+        )
         self.deepseek_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
         self.deepseek_timeout_sec = float(os.getenv("DEEPSEEK_TIMEOUT_SEC", "120"))
         self.deepseek_proxy_url = os.getenv("DEEPSEEK_PROXY_URL", "")
