@@ -126,7 +126,7 @@ jobs:
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf/nginx.conf"; fi
-            if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="none"; fi
+            if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="lax"; fi
             if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
 
             cp "${APP_DIR}/infra/nginx/nginx.conf" "${NGINX_RUNTIME_CONF}"
@@ -161,4 +161,3 @@ jobs:
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload
 
             echo "Deploy finished with image ${IMAGE_REF}."
-

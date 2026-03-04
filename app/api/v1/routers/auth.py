@@ -21,6 +21,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
         samesite=settings.cookie_samesite,
         secure=secure,
         max_age=settings.access_token_expire_minutes * 60,
+        domain="formatis.online",
         path="/",
     )
 
