@@ -15,7 +15,6 @@ class FlavorRead(SQLModel):
 class ImageRead(SQLModel):
     id: int
     code: str
-    docker_image_ref: str
     display_name: str
     is_active: bool
     created_at: datetime
