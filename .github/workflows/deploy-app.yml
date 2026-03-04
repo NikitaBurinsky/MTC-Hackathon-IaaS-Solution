@@ -81,14 +81,13 @@ jobs:
             if [ -z "${APP_DIR}" ]; then APP_DIR="/opt/iaas-hackathon"; fi
 
             DOMAIN="${{ secrets.DOMAIN }}"
-            LETSENCRYPT_EMAIL="${{ secrets.LETSENCRYPT_EMAIL }}"
             JWT_SECRET="${{ secrets.JWT_SECRET }}"
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
 
-            if [ -z "${DOMAIN}" ] || [ -z "${LETSENCRYPT_EMAIL}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${IMAGE_REF}" ]; then
+            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${IMAGE_REF}" ]; then
               echo "Required secrets/outputs are missing"
               exit 1
             fi
@@ -114,21 +113,12 @@ jobs:
             export DATABASE_URL
             export JWT_SECRET
             export DOMAIN
-            export LETSENCRYPT_EMAIL
             export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
             export APP_IMAGE="${IMAGE_REF}"
 
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" pull api
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d api nginx
-
-            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" run --rm certbot certonly --webroot \
-              --webroot-path=/var/www/certbot \
-              --email "${LETSENCRYPT_EMAIL}" \
-              --agree-tos \
-              --no-eff-email \
-              -d "${DOMAIN}" \
-              -d "www.${DOMAIN}"
 
             sed "s/\${DOMAIN}/${DOMAIN}/g" "${APP_DIR}/infra/nginx/nginx.https.template.conf" > "${NGINX_RUNTIME_CONF}"
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d nginx

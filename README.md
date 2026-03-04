@@ -58,7 +58,6 @@ Required GitHub Secrets:
 - `VPS_PORT`
 - `POSTGRES_PASSWORD`
 - `DOMAIN`
-- `LETSENCRYPT_EMAIL`
 - `JWT_SECRET`
 - `DATABASE_URL`
 
