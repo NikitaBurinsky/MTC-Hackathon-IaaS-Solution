@@ -14,8 +14,10 @@ FastAPI-based IaaS MVP with:
 2. Start PostgreSQL.
 3. Install dependencies:
    - `pip install -r requirements.txt`
+   - OR `uv sync`
 4. Run API:
    - `uvicorn app.main:app --reload`
+   - OR `uv run uvicorn app.main:app --reload`
 
 ## API Base
 
