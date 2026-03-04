@@ -20,6 +20,7 @@
 
 ## Task Intake & Clarifications
 - Check `TODO.md` for pending changes and confirm which items to implement before starting.
+- Review the PDF in `docs/` that describes the hackathon technical task and follow it when possible; ask if requirements conflict or are unclear.
 - If multiple TODOs exist, ask which items are in scope and their priority.
 - Ask focused questions about implementation details (inputs/outputs, edge cases, constraints) when TODOs are ambiguous.
 - Be skeptical of scope creep; prefer minimal changes that meet the requirement and avoid overengineering.
