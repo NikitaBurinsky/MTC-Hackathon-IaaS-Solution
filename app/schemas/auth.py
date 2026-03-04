@@ -1,11 +1,43 @@
-from sqlmodel import Field, SQLModel
+from pydantic import field_validator
+from sqlmodel import SQLModel
 
 
 class RegisterRequest(SQLModel):
-    name: str = Field(min_length=1, max_length=120)
-    email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=1, max_length=128)
-    tenant_name: str = Field(min_length=1, max_length=120)
+    name: str
+    email: str
+    password: str
+    tenant_name: str
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("name must not be empty")
+        return trimmed
+
+    @field_validator("tenant_name")
+    @classmethod
+    def validate_tenant_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("tenant_name must not be empty")
+        return trimmed
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("email must not be empty")
+        return trimmed
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("password must not be empty")
+        return value
 
 
 class RegisterResponse(SQLModel):
@@ -18,8 +50,23 @@ class RegisterResponse(SQLModel):
 
 
 class LoginRequest(SQLModel):
-    email: str = Field(min_length=3, max_length=255)
-    password: str = Field(min_length=1, max_length=128)
+    email: str
+    password: str
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("email must not be empty")
+        return trimmed
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("password must not be empty")
+        return value
 
 
 class TokenResponse(SQLModel):

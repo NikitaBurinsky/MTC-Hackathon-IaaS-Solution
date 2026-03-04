@@ -21,6 +21,7 @@
 
                     env = {
                         UV_PYTHON = "3.14";
+                        LD_LIBRARY_PATH = "${pkgs.stdenv.cc.cc.lib}/lib";
                     };
                 };
         };

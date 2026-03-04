@@ -15,7 +15,14 @@ class FlavorRead(SQLModel):
 class ImageRead(SQLModel):
     id: int
     code: str
-    docker_image_ref: str
     display_name: str
     is_active: bool
+    created_at: datetime
+
+
+class PlanRead(SQLModel):
+    id: int
+    name: str
+    max_cpu: int
+    max_ram_mb: int
     created_at: datetime

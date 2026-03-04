@@ -1,52 +1,52 @@
-﻿# IaaS Cloud Platform MVP (Hackathon)
+# IaaS Cloud Platform MVP (Hackathon)
 
-FastAPI-based IaaS MVP with:
-- Multi-tenant isolation via JWT `tenant_id`
-- Resource quota checks and usage billing
-- Docker-backed instance lifecycle
-- Task execution on instances with per-instance logs
-- Logical network CRUD
-- Swagger demo at `/docs`
+FastAPI-based IaaS concept with multi-tenant isolation, Docker-backed instances,
+task execution, logical networks, and basic billing/quotas. Swagger UI is
+available at `/docs`.
+
+## Documentation
+
+- `docs/technical.md`: hackathon technical task and evaluation criteria.
+- `docs/architecture/README.md`: diagram index and rendering tips.
+- `docs/manual-test-checklist.md`: manual QA scenarios for the API.
 
 ## Quick Start (Local)
 
-1. Create `.env` from `.env.example`.
-2. Start PostgreSQL.
-3. Install dependencies:
-   - `pip install -r requirements.txt`
-   - OR `uv sync`
-4. Run API:
-   - `uvicorn app.main:app --reload`
-   - OR `uv run uvicorn app.main:app --reload`
+1. `cp .env.example .env` and fill required values.
+2. Start PostgreSQL (use your local compose file or a local Postgres install).
+3. Install dependencies: `pip install -r requirements.txt` or `uv sync`.
+4. Run the API: `uvicorn app.main:app --reload` (or `uv run uvicorn app.main:app --reload`).
 
-## API Base
+Python >= 3.13 is required.
 
-- `/api/v1`
+## API Overview
 
-Key routes:
-- `POST /auth/register`
-- `POST /auth/login`
-- `GET /tenant/profile`
-- `GET /billing/quotas`
-- `GET /billing/usage`
+Base path: `/api/v1`.
+
+Auth:
+- `POST /auth/register` and `POST /auth/login` accept JSON and return a JWT.
+- The JWT is also set as the `access_token` cookie for browser clients.
+
+Catalog (read-only, seeded by `init_db`):
 - `GET /flavors`
 - `GET /images`
+- `GET /plans`
+
+Tenant-scoped resources:
 - `GET/POST/DELETE /instances*`
 - `POST/GET/DELETE /deployments*`
-- `POST /tasks/execute`
-- `GET /tasks`
-- `GET /tasks/{id}`
+- `POST /tasks/execute`, `GET /tasks`, `GET /tasks/{id}`
 - `GET/POST/PUT/DELETE /scripts*`
 - `GET/POST/PUT/DELETE /networks*`
 
-AI deployment entrypoint rules:
-- `app/config/entrypoint_rules.json`
-- `exact_filenames` is matched by filename.
-- `regex_patterns` supports regex against both filename and relative file path.
+AI deployment entrypoint rules live in `app/config/entrypoint_rules.json`
+(`exact_filenames` and `regex_patterns`).
 
-Hosted deployment access:
-- Deployed apps are exposed through Nginx at `https://<DOMAIN>/<DEPLOYMENT_PUBLIC_PATH_PREFIX>/<deployment_id>/`.
-- Deleting deployment (`DELETE /api/v1/deployments/{deployment_id}`) removes container, image, and Nginx route.
+## Hosted Deployments
+
+Deployed apps are exposed via Nginx at:
+`https://<DOMAIN>/<DEPLOYMENT_PUBLIC_PATH_PREFIX>/<deployment_id>/`.
+Deleting a deployment removes the container, image, and Nginx route.
 
 ## VPS Deployment (Ubuntu)
 
@@ -54,27 +54,11 @@ Workflows:
 - `.github/workflows/db-bootstrap.yml` (manual trigger)
 - `.github/workflows/deploy-app.yml` (auto on push to `main`)
 
-Notes:
-- Workflow logic is fully inline (no `.sh` script execution).
-- DB bootstrap recreates PostgreSQL from scratch each run:
-  - removes old container
-  - removes old named volume
-  - starts a brand new Postgres container
+DB bootstrap recreates PostgreSQL from scratch each run (container + volume).
 
 Required GitHub Secrets:
-- `VPS_HOST`
-- `VPS_USER`
-- `VPS_SSH_KEY`
-- `VPS_PORT`
-- `POSTGRES_PASSWORD`
-- `DOMAIN`
-- `JWT_SECRET`
-- `DATABASE_URL`
-- `GEMINI_API_KEY`
-- `GEMINI_PROXY_URL` (if Gemini must be called through authenticated proxy)
-- `GEMINI_PROXY_USERNAME` / `GEMINI_PROXY_PASSWORD` (if proxy URL is assembled from parts)
-- `GEMINI_PROXY_SCHEME` / `GEMINI_PROXY_HOST` / `GEMINI_PROXY_PORT` (if proxy URL is assembled from parts)
-  - `GEMINI_PROXY_URL` has priority over split host/port/login/password settings.
+- `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_PORT`
+- `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `DOMAIN`, `GEMINI_API_KEY`
 
 Optional GitHub Variables:
 - `VPS_APP_DIR` (default: `/opt/iaas-hackathon`)
@@ -87,11 +71,3 @@ Optional GitHub Variables:
 - `DEPLOYMENT_PUBLIC_SCHEME` (default: `https`)
 - `DEPLOYMENT_NETWORK_NAME` (default: `iaas-backbone`)
 - `NGINX_CONTAINER_NAME` (default: `iaas-nginx`)
-
-## Architecture Diagrams
-
-See `docs/architecture/*.mmd`.
-
-## Manual Validation
-
-Use `docs/manual-test-checklist.md` with Swagger `/docs`.

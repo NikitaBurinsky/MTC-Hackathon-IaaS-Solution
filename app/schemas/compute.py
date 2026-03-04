@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from pydantic import field_validator
 from sqlmodel import Field, SQLModel
 
 from app.models import (
@@ -11,9 +12,17 @@ from app.models import (
 
 
 class InstanceCreateRequest(SQLModel):
-    name: str = Field(min_length=1, max_length=120)
+    name: str
     flavor_id: int = Field(gt=0)
     image_id: int = Field(gt=0)
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("name must not be empty")
+        return trimmed
 
 
 class InstanceRead(SQLModel):

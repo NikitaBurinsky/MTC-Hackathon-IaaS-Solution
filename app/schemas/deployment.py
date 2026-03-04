@@ -1,11 +1,20 @@
 from datetime import datetime
 
-from sqlmodel import SQLModel
+from pydantic import field_validator
+from sqlmodel import Field, SQLModel
 
 
 class DeploymentCreateRequest(SQLModel):
     github_url: str
-    tenant_id: int
+    tenant_id: int = Field(gt=0)
+
+    @field_validator("github_url")
+    @classmethod
+    def validate_github_url(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("github_url must not be empty")
+        return trimmed
 
 
 class DeploymentCreateResponse(SQLModel):
