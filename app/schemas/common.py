@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlmodel import SQLModel
 
 
@@ -12,3 +14,7 @@ class ErrorDetail(SQLModel):
 
 class ErrorResponse(SQLModel):
     error: ErrorDetail
+
+
+class ErrorResponse(SQLModel):
+    detail: Any
