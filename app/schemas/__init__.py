@@ -5,7 +5,7 @@ from app.schemas.auth import (
     TokenResponse,
 )
 from app.schemas.billing import QuotaResponse, UsageItem, UsageResponse
-from app.schemas.catalog import FlavorRead, ImageRead
+from app.schemas.catalog import FlavorRead, ImageRead, PlanRead
 from app.schemas.common import MessageResponse
 from app.schemas.compute import (
     InstanceActionRequest,
@@ -45,6 +45,7 @@ __all__ = [
     "NetworkCreateRequest",
     "NetworkRead",
     "NetworkUpdateRequest",
+    "PlanRead",
     "QuotaResponse",
     "RegisterRequest",
     "RegisterResponse",

@@ -3,8 +3,8 @@ from sqlmodel import Session, select
 
 from app.core.deps import get_current_tenant_id
 from app.db.session import get_session
-from app.models import Flavor, Image
-from app.schemas import FlavorRead, ImageRead
+from app.models import Flavor, Image, Plan
+from app.schemas import FlavorRead, ImageRead, PlanRead
 
 router = APIRouter(tags=["catalog"])
 
@@ -25,3 +25,8 @@ def list_images(
     return session.exec(
         select(Image).where(Image.is_active == True).order_by(Image.code.asc())
     ).all()  # noqa: E712
+
+
+@router.get("/plans", response_model=list[PlanRead])
+def list_plans(session: Session = Depends(get_session)):
+    return session.exec(select(Plan).order_by(Plan.id.asc())).all()
