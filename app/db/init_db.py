@@ -17,7 +17,10 @@ def seed_defaults(session: Session) -> None:
             max_cpu=settings.default_plan_cpu,
             max_ram_mb=settings.default_plan_ram_mb,
         )
-        session.add(plan)
+    else:
+        plan.max_cpu = settings.default_plan_cpu
+        plan.max_ram_mb = settings.default_plan_ram_mb
+    session.add(plan)
 
     flavor = session.exec(
         select(Flavor).where(Flavor.name == settings.default_flavor_name),
@@ -29,33 +32,43 @@ def seed_defaults(session: Session) -> None:
             ram_mb=settings.default_flavor_ram_mb,
             price_per_minute=settings.default_flavor_rate,
         )
-        session.add(flavor)
+    else:
+        flavor.cpu = settings.default_flavor_cpu
+        flavor.ram_mb = settings.default_flavor_ram_mb
+        flavor.price_per_minute = settings.default_flavor_rate
+    session.add(flavor)
 
     image = session.exec(
         select(Image).where(Image.code == settings.default_image_code)
     ).first()
     if not image:
-        session.add(
-            Image(
-                code=settings.default_image_code,
-                docker_image_ref=settings.default_image_ref,
-                display_name=settings.default_image_name,
-                is_active=True,
-            ),
+        image = Image(
+            code=settings.default_image_code,
+            docker_image_ref=settings.default_image_ref,
+            display_name=settings.default_image_name,
+            is_active=True,
         )
+    else:
+        image.docker_image_ref = settings.default_image_ref
+        image.display_name = settings.default_image_name
+        image.is_active = True
+    session.add(image)
 
     secondary = session.exec(
         select(Image).where(Image.code == settings.secondary_image_code)
     ).first()
     if not secondary:
-        session.add(
-            Image(
-                code=settings.secondary_image_code,
-                docker_image_ref=settings.secondary_image_ref,
-                display_name=settings.secondary_image_name,
-                is_active=True,
-            ),
+        secondary = Image(
+            code=settings.secondary_image_code,
+            docker_image_ref=settings.secondary_image_ref,
+            display_name=settings.secondary_image_name,
+            is_active=True,
         )
+    else:
+        secondary.docker_image_ref = settings.secondary_image_ref
+        secondary.display_name = settings.secondary_image_name
+        secondary.is_active = True
+    session.add(secondary)
 
     session.commit()
 
