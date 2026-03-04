@@ -84,6 +84,16 @@ class TaskService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Instances not found: {missing}",
             )
+        not_running = [
+            instance.id
+            for instance in instances
+            if instance.status != InstanceStatus.RUNNING
+        ]
+        if not_running:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Instances not RUNNING: {not_running}",
+            )
 
         for instance_id in instance_ids:
             session.add(
