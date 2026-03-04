@@ -2,8 +2,10 @@ from sqlmodel import SQLModel
 
 
 class RegisterRequest(SQLModel):
+    name: str
     email: str
     password: str
+    workspace_name: str
 
 
 class RegisterResponse(SQLModel):
@@ -23,4 +25,3 @@ class LoginRequest(SQLModel):
 class TokenResponse(SQLModel):
     access_token: str
     token_type: str = "bearer"
-

@@ -1,5 +1,3 @@
-import re
-
 from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
@@ -9,19 +7,35 @@ from app.models import Plan, Tenant, User
 
 
 class AuthService:
-    @staticmethod
-    def _tenant_name_from_email(email: str) -> str:
-        local = email.split("@", 1)[0].lower()
-        slug = re.sub(r"[^a-z0-9-]", "-", local).strip("-")
-        slug = slug or "org"
-        return f"tenant-{slug}"
+    def register(self, session: Session, name: str, email: str, password: str, workspace_name: str) -> tuple[User, Tenant]:
+        normalized_name = name.strip()
+        normalized_email = email.strip()
+        normalized_workspace = workspace_name.strip()
+        if not normalized_name or not normalized_workspace:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Username and workspace name are required",
+            )
 
-    def register(self, session: Session, email: str, password: str) -> tuple[User, Tenant]:
-        existing = session.exec(select(User).where(User.email == email)).first()
+        existing = session.exec(select(User).where(User.email == normalized_email)).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="User with this email already exists",
+            )
+
+        existing_name = session.exec(select(User).where(User.name == normalized_name)).first()
+        if existing_name:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="User with this name already exists",
+            )
+
+        existing_workspace = session.exec(select(Tenant).where(Tenant.name == normalized_workspace)).first()
+        if existing_workspace:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Workspace name already exists",
             )
 
         settings = get_settings()
@@ -32,15 +46,8 @@ class AuthService:
                 detail="Default plan is not configured",
             )
 
-        tenant_name = self._tenant_name_from_email(email)
-        suffix = 1
-        unique_name = tenant_name
-        while session.exec(select(Tenant).where(Tenant.name == unique_name)).first():
-            suffix += 1
-            unique_name = f"{tenant_name}-{suffix}"
-
         tenant = Tenant(
-            name=unique_name,
+            name=normalized_workspace,
             balance_credits=settings.initial_credits,
             plan_id=plan.id,
         )
@@ -49,7 +56,8 @@ class AuthService:
 
         user = User(
             tenant_id=tenant.id,
-            email=email,
+            name=normalized_name,
+            email=normalized_email,
             password_hash=hash_password(password),
             is_active=True,
         )
@@ -72,4 +80,3 @@ class AuthService:
                 detail="Inactive user",
             )
         return create_access_token(subject=str(user.id), tenant_id=user.tenant_id)
-

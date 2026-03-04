@@ -29,7 +29,13 @@ async def get_login_payload(request: Request) -> LoginRequest:
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, session: Session = Depends(get_session)):
-    user, tenant = auth_service.register(session=session, email=payload.email, password=payload.password)
+    user, tenant = auth_service.register(
+        session=session,
+        name=payload.name,
+        email=payload.email,
+        password=payload.password,
+        workspace_name=payload.workspace_name,
+    )
     token = create_access_token(subject=str(user.id), tenant_id=tenant.id)
     return RegisterResponse(
         tenant_id=tenant.id,

@@ -39,6 +39,7 @@ class User(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     tenant_id: int = Field(foreign_key="tenants.id", index=True, nullable=False)
+    name: str = Field(sa_column=Column(String(120), unique=True, nullable=False, index=True))
     email: str = Field(sa_column=Column(String(255), unique=True, nullable=False, index=True))
     password_hash: str = Field(sa_column=Column(String(255), nullable=False))
     is_active: bool = Field(default=True, nullable=False)
@@ -167,4 +168,3 @@ class Network(SQLModel, table=True):
     cidr: str = Field(sa_column=Column(String(64), nullable=False))
     description: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime = Field(default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False))
-
