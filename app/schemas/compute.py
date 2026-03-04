@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlmodel import SQLModel
+from sqlmodel import Field, SQLModel
 
 from app.models import (
     ActionType,
@@ -11,9 +11,9 @@ from app.models import (
 
 
 class InstanceCreateRequest(SQLModel):
-    name: str
-    flavor_id: int
-    image_id: int
+    name: str = Field(min_length=1, max_length=120)
+    flavor_id: int = Field(gt=0)
+    image_id: int = Field(gt=0)
 
 
 class InstanceRead(SQLModel):

@@ -11,7 +11,7 @@ class AuthService:
         self, session: Session, name: str, email: str, password: str, tenant_name: str
     ) -> tuple[User, Tenant]:
         normalized_name = name.strip()
-        normalized_email = email.strip()
+        normalized_email = email.strip().lower()
         normalized_tenant = tenant_name.strip()
         if not normalized_name or not normalized_tenant:
             raise HTTPException(
@@ -78,7 +78,10 @@ class AuthService:
         return user, tenant
 
     def login(self, session: Session, email: str, password: str) -> str:
-        user = session.exec(select(User).where(User.email == email)).first()
+        normalized_email = email.strip().lower()
+        user = session.exec(
+            select(User).where(User.email == normalized_email)
+        ).first()
         if not user or not verify_password(password, user.password_hash):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

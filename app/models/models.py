@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Float, Integer, String, Text
+from sqlalchemy import Column, DateTime, Float, Index, Integer, String, Text, func
 from sqlalchemy import Enum as SQLEnum
 from sqlmodel import Field, SQLModel
 
@@ -61,6 +61,9 @@ class User(SQLModel, table=True):
     created_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
     )
+
+
+Index("ix_users_email_lower", func.lower(User.email), unique=True)
 
 
 class Flavor(SQLModel, table=True):
