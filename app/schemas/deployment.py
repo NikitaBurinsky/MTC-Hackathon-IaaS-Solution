@@ -22,6 +22,17 @@ class DeploymentCreateResponse(SQLModel):
     status: str
 
 
+class DeploymentAttemptRead(SQLModel):
+    attempt: int
+    status: str
+    technology: str | None
+    dockerfile: str | None
+    build_error: str | None
+    prompt_context_chars: int
+    started_at: datetime
+    finished_at: datetime | None
+
+
 class DeploymentStatusResponse(SQLModel):
     deployment_id: str
     tenant_id: int
@@ -33,5 +44,8 @@ class DeploymentStatusResponse(SQLModel):
     container_port: int | None
     public_url: str | None
     error_message: str | None
+    current_attempt: int
+    max_attempts: int
+    attempts: list[DeploymentAttemptRead]
     created_at: datetime
     updated_at: datetime

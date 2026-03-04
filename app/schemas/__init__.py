@@ -16,6 +16,7 @@ from app.schemas.compute import (
 )
 from app.schemas.dash import DashTenant, DashUser, DashUserResponse
 from app.schemas.deployment import (
+    DeploymentAttemptRead,
     DeploymentCreateRequest,
     DeploymentCreateResponse,
     DeploymentStatusResponse,
@@ -36,6 +37,7 @@ __all__ = [
     "DeploymentCreateRequest",
     "DeploymentCreateResponse",
     "DeploymentStatusResponse",
+    "DeploymentAttemptRead",
     "DashTenant",
     "DashUser",
     "DashUserResponse",

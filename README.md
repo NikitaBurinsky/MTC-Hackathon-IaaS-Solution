@@ -42,11 +42,20 @@ Tenant-scoped resources:
 AI deployment entrypoint rules live in `app/config/entrypoint_rules.json`
 (`exact_filenames` and `regex_patterns`).
 
+`GET /deployments/{id}` includes retry metadata:
+- `current_attempt`, `max_attempts`
+- `attempts[]` with per-attempt Dockerfile, build error, detected technology, and timing.
+
 ## Hosted Deployments
 
 Deployed apps are exposed via Nginx at:
 `https://<DOMAIN>/<DEPLOYMENT_PUBLIC_PATH_PREFIX>/<deployment_id>/`.
 Deleting a deployment removes the container, image, and Nginx route.
+
+AI deployment retries are enabled by default:
+- up to 3 attempts per deployment (`AI_DEPLOY_MAX_ATTEMPTS`, hard-capped at 3)
+- retry occurs only after Docker build failures
+- attempts 2-3 include enriched repository context + previous build feedback.
 
 ## VPS Deployment (Ubuntu)
 
@@ -74,3 +83,5 @@ Optional GitHub Variables:
 - `PROXYAPI_BASE_URL` (default: `https://api.proxyapi.ru/openrouter/v1`)
 - `PROXYAPI_MODEL` (default: `deepseek/deepseek-chat`)
 - `PROXYAPI_TIMEOUT_SEC` (default: `120`)
+- `AI_DEPLOY_MAX_ATTEMPTS` (default: `3`, hard cap `3`)
+- `AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS` (default: `120000`)

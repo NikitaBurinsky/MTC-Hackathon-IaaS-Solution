@@ -1,4 +1,5 @@
 import asyncio
+import fnmatch
 import io
 import json
 import logging
@@ -7,7 +8,7 @@ import re
 import subprocess
 import tarfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -25,6 +26,7 @@ except Exception as exc:  # noqa: BLE001
 
 from app.core.config import get_settings
 from app.schemas.deployment import (
+    DeploymentAttemptRead,
     DeploymentCreateRequest,
     DeploymentCreateResponse,
     DeploymentStatusResponse,
@@ -47,6 +49,9 @@ class DeploymentRecord:
     container_port: int | None = None
     public_url: str | None = None
     error_message: str | None = None
+    current_attempt: int = 0
+    max_attempts: int = 3
+    attempts: list["DeploymentAttemptRecord"] = field(default_factory=list)
     cancel_requested: bool = False
 
 
@@ -55,6 +60,18 @@ class RepositoryContext:
     directory_tree: str
     metadata_files: dict[str, str]
     entrypoints: dict[str, str]
+
+
+@dataclass
+class DeploymentAttemptRecord:
+    attempt: int
+    status: str
+    technology: str | None
+    dockerfile: str | None
+    build_error: str | None
+    prompt_context_chars: int
+    started_at: datetime
+    finished_at: datetime | None
 
 
 class RepoNotFoundError(RuntimeError):
@@ -72,6 +89,86 @@ class DeploymentCancelledError(RuntimeError):
 class DeploymentService:
     EXCLUDED_DIRS = {".git", "node_modules", "venv", ".venv"}
     METADATA_FILES = ("package.json", "requirements.txt", "pyproject.toml", "go.mod")
+    COMMON_BUILD_FILES = {
+        "Dockerfile",
+        "docker-compose.yml",
+        "docker-compose.yaml",
+        "docker-compose.dev.yml",
+        "docker-compose.prod.yml",
+        ".dockerignore",
+        "Makefile",
+        "Procfile",
+        ".env.example",
+    }
+    TECHNOLOGY_SIGNATURES: dict[str, tuple[str, ...]] = {
+        "dotnet": (
+            ".sln",
+            ".csproj",
+            ".fsproj",
+            "Directory.Build.props",
+            "Directory.Packages.props",
+            "global.json",
+            "NuGet.config",
+            "nuget.config",
+        ),
+        "python": ("requirements.txt", "pyproject.toml", "setup.py", "Pipfile"),
+        "node": ("package.json", "pnpm-lock.yaml", "yarn.lock", "package-lock.json"),
+        "java": ("pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"),
+        "go": ("go.mod",),
+        "rust": ("Cargo.toml",),
+        "php": ("composer.json",),
+        "ruby": ("Gemfile",),
+    }
+    TECHNOLOGY_BUILD_FILES: dict[str, tuple[str, ...]] = {
+        "dotnet": (
+            "*.sln",
+            "*.csproj",
+            "*.fsproj",
+            "Directory.Build.props",
+            "Directory.Packages.props",
+            "global.json",
+            "NuGet.config",
+            "nuget.config",
+        ),
+        "python": (
+            "requirements*.txt",
+            "pyproject.toml",
+            "Pipfile",
+            "Pipfile.lock",
+            "setup.py",
+            "poetry.lock",
+            "uv.lock",
+            "gunicorn.conf.py",
+            "manage.py",
+            "wsgi.py",
+            "asgi.py",
+        ),
+        "node": (
+            "package.json",
+            "package-lock.json",
+            "yarn.lock",
+            "pnpm-lock.yaml",
+            "npm-shrinkwrap.json",
+            "next.config.*",
+            "vite.config.*",
+            "nuxt.config.*",
+            "svelte.config.*",
+        ),
+        "java": (
+            "pom.xml",
+            "build.gradle",
+            "build.gradle.kts",
+            "settings.gradle",
+            "settings.gradle.kts",
+            "gradle.properties",
+            "mvnw",
+            "gradlew",
+        ),
+        "go": ("go.mod", "go.sum", "*.go"),
+        "rust": ("Cargo.toml", "Cargo.lock", "*.rs"),
+        "php": ("composer.json", "composer.lock", "*.php"),
+        "ruby": ("Gemfile", "Gemfile.lock", "config.ru", "Rakefile"),
+    }
     ENTRYPOINT_CONFIG_PATH = Path(__file__).resolve().parents[1] / "config" / "entrypoint_rules.json"
     NGINX_DYNAMIC_DIR = "/etc/nginx/deployment-locations"
     MAX_TREE_ENTRIES = 400
@@ -86,6 +183,11 @@ class DeploymentService:
             "[AI_SYS] DeploymentService initialized; entrypoint_rules=%s regex_rules=%s",
             len(self._entrypoint_filenames),
             len(self._entrypoint_regex_patterns),
+        )
+        logger.info(
+            "[AI_SYS] DeploymentService retry settings max_attempts=%s retry_context_max_chars=%s",
+            self._effective_max_attempts(),
+            self._effective_retry_context_max_chars(),
         )
 
     async def request_deployment(
@@ -111,6 +213,7 @@ class DeploymentService:
 
         deployment_id = uuid4().hex
         now = datetime.utcnow()
+        max_attempts = self._effective_max_attempts()
         record = DeploymentRecord(
             deployment_id=deployment_id,
             tenant_id=payload.tenant_id,
@@ -118,6 +221,7 @@ class DeploymentService:
             status="analyzing",
             created_at=now,
             updated_at=now,
+            max_attempts=max_attempts,
         )
         with self._lock:
             self._deployments[deployment_id] = record
@@ -139,28 +243,62 @@ class DeploymentService:
         )
         with self._lock:
             record = self._deployments.get(deployment_id)
+            if not record or record.tenant_id != tenant_id:
+                logger.warning(
+                    "[AI_SYS] Deployment status lookup failed deployment_id=%s tenant_id=%s",
+                    deployment_id,
+                    tenant_id,
+                )
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
 
-        if not record or record.tenant_id != tenant_id:
-            logger.warning(
-                "[AI_SYS] Deployment status lookup failed deployment_id=%s tenant_id=%s",
-                deployment_id,
-                tenant_id,
-            )
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
+            attempts = [
+                DeploymentAttemptRead(
+                    attempt=item.attempt,
+                    status=item.status,
+                    technology=item.technology,
+                    dockerfile=item.dockerfile,
+                    build_error=item.build_error,
+                    prompt_context_chars=item.prompt_context_chars,
+                    started_at=item.started_at,
+                    finished_at=item.finished_at,
+                )
+                for item in record.attempts
+            ]
+
+            payload = {
+                "deployment_id": record.deployment_id,
+                "tenant_id": record.tenant_id,
+                "github_url": record.github_url,
+                "status": record.status,
+                "docker_image": record.docker_image,
+                "container_id": record.container_id,
+                "container_name": record.container_name,
+                "container_port": record.container_port,
+                "public_url": record.public_url,
+                "error_message": record.error_message,
+                "current_attempt": record.current_attempt,
+                "max_attempts": record.max_attempts,
+                "attempts": attempts,
+                "created_at": record.created_at,
+                "updated_at": record.updated_at,
+            }
 
         return DeploymentStatusResponse(
-            deployment_id=record.deployment_id,
-            tenant_id=record.tenant_id,
-            github_url=record.github_url,
-            status=record.status,
-            docker_image=record.docker_image,
-            container_id=record.container_id,
-            container_name=record.container_name,
-            container_port=record.container_port,
-            public_url=record.public_url,
-            error_message=record.error_message,
-            created_at=record.created_at,
-            updated_at=record.updated_at,
+            deployment_id=payload["deployment_id"],
+            tenant_id=payload["tenant_id"],
+            github_url=payload["github_url"],
+            status=payload["status"],
+            docker_image=payload["docker_image"],
+            container_id=payload["container_id"],
+            container_name=payload["container_name"],
+            container_port=payload["container_port"],
+            public_url=payload["public_url"],
+            error_message=payload["error_message"],
+            current_attempt=payload["current_attempt"],
+            max_attempts=payload["max_attempts"],
+            attempts=payload["attempts"],
+            created_at=payload["created_at"],
+            updated_at=payload["updated_at"],
         )
 
     async def delete_deployment(self, deployment_id: str, tenant_id: int) -> None:
@@ -237,71 +375,189 @@ class DeploymentService:
 
                 self._update_deployment(deployment_id, status="analyzing")
                 context = await asyncio.to_thread(self._scan_repository, repo_dir)
+                technology = await asyncio.to_thread(self._detect_technology, repo_dir, context)
                 self._assert_not_cancelled(deployment_id)
                 logger.info(
-                    "[AI_SYS] Repository analyzed deployment_id=%s metadata_files=%s entrypoints=%s",
+                    "[AI_SYS] Repository analyzed deployment_id=%s metadata_files=%s entrypoints=%s technology=%s",
                     deployment_id,
                     len(context.metadata_files),
                     len(context.entrypoints),
+                    technology or "unknown",
                 )
+                self._update_deployment(deployment_id, current_attempt=0, error_message=None)
 
-                self._update_deployment(deployment_id, status="generating_dockerfile")
-                dockerfile = await asyncio.to_thread(self._generate_dockerfile, context)
-                await asyncio.to_thread(
-                    (repo_dir / "Dockerfile").write_text,
-                    dockerfile,
-                    "utf-8",
-                )
-                self._assert_not_cancelled(deployment_id)
-                logger.info(
-                    "[AI_SYS] Dockerfile generated deployment_id=%s bytes=%s",
-                    deployment_id,
-                    len(dockerfile.encode("utf-8", errors="ignore")),
-                )
+                max_attempts = self._get_max_attempts(deployment_id)
+                for attempt_number in range(1, max_attempts + 1):
+                    self._assert_not_cancelled(deployment_id)
+                    self._start_attempt(deployment_id, attempt_number, technology)
+                    logger.info(
+                        "[AI_SYS] Deployment attempt started deployment_id=%s attempt=%s/%s technology=%s",
+                        deployment_id,
+                        attempt_number,
+                        max_attempts,
+                        technology or "unknown",
+                    )
 
-                self._update_deployment(deployment_id, status="building")
-                image_tag, container_id, container_name, container_port = await asyncio.to_thread(
-                    self._build_and_run,
-                    repo_dir,
-                    record.tenant_id,
-                    deployment_id,
-                )
-                self._update_deployment(
-                    deployment_id,
-                    docker_image=image_tag,
-                    container_id=container_id,
-                    container_name=container_name,
-                    container_port=container_port,
-                )
-                self._assert_not_cancelled(deployment_id)
-                logger.info(
-                    "[AI_SYS] Container built and started deployment_id=%s image=%s container_id=%s name=%s port=%s",
-                    deployment_id,
-                    image_tag,
-                    container_id,
-                    container_name,
-                    container_port,
-                )
+                    try:
+                        self._update_deployment(
+                            deployment_id,
+                            status="generating_dockerfile",
+                            current_attempt=attempt_number,
+                        )
+                        prompt_context, prompt_context_chars = await asyncio.to_thread(
+                            self._build_prompt_context,
+                            repo_dir,
+                            context,
+                            technology,
+                            attempt_number,
+                            deployment_id,
+                        )
+                        self._update_attempt(
+                            deployment_id,
+                            attempt_number,
+                            prompt_context_chars=prompt_context_chars,
+                        )
+                        logger.info(
+                            "[AI_SYS] Deployment attempt prompt prepared deployment_id=%s attempt=%s prompt_context_chars=%s",
+                            deployment_id,
+                            attempt_number,
+                            prompt_context_chars,
+                        )
 
-                self._update_deployment(deployment_id, status="configuring_access")
-                public_url = await asyncio.to_thread(
-                    self._configure_public_access,
-                    deployment_id,
-                    container_name,
-                    container_port,
-                )
-                self._assert_not_cancelled(deployment_id)
-                self._update_deployment(
-                    deployment_id,
-                    status="running",
-                    public_url=public_url,
-                    error_message=None,
-                )
-                logger.info(
-                    "[AI_SYS] Deployment pipeline completed deployment_id=%s public_url=%s",
-                    deployment_id,
-                    public_url,
-                )
+                        dockerfile = await asyncio.to_thread(
+                            self._generate_dockerfile,
+                            prompt_context,
+                            attempt_number,
+                            max_attempts,
+                            technology,
+                        )
+                        self._update_attempt(
+                            deployment_id,
+                            attempt_number,
+                            dockerfile=dockerfile,
+                            status="dockerfile_generated",
+                        )
+                        await asyncio.to_thread(
+                            (repo_dir / "Dockerfile").write_text,
+                            dockerfile,
+                            "utf-8",
+                        )
+                        self._assert_not_cancelled(deployment_id)
+                        logger.info(
+                            "[AI_SYS] Dockerfile generated deployment_id=%s attempt=%s bytes=%s",
+                            deployment_id,
+                            attempt_number,
+                            len(dockerfile.encode("utf-8", errors="ignore")),
+                        )
+
+                        self._update_deployment(deployment_id, status="building")
+                        image_tag, container_id, container_name, container_port = await asyncio.to_thread(
+                            self._build_and_run,
+                            repo_dir,
+                            record.tenant_id,
+                            deployment_id,
+                        )
+                        self._update_deployment(
+                            deployment_id,
+                            docker_image=image_tag,
+                            container_id=container_id,
+                            container_name=container_name,
+                            container_port=container_port,
+                        )
+                        self._update_attempt(
+                            deployment_id,
+                            attempt_number,
+                            status="build_succeeded",
+                            finished_at=datetime.utcnow(),
+                        )
+                        self._assert_not_cancelled(deployment_id)
+                        logger.info(
+                            "[AI_SYS] Container built and started deployment_id=%s attempt=%s image=%s container_id=%s name=%s port=%s",
+                            deployment_id,
+                            attempt_number,
+                            image_tag,
+                            container_id,
+                            container_name,
+                            container_port,
+                        )
+
+                        self._update_deployment(deployment_id, status="configuring_access")
+                        public_url = await asyncio.to_thread(
+                            self._configure_public_access,
+                            deployment_id,
+                            container_name,
+                            container_port,
+                        )
+                        self._assert_not_cancelled(deployment_id)
+                        self._update_deployment(
+                            deployment_id,
+                            status="running",
+                            public_url=public_url,
+                            error_message=None,
+                        )
+                        logger.info(
+                            "[AI_SYS] Deployment pipeline completed deployment_id=%s attempt=%s public_url=%s",
+                            deployment_id,
+                            attempt_number,
+                            public_url,
+                        )
+                        return
+                    except BuildFailedError as exc:
+                        build_error = str(exc)
+                        self._update_attempt(
+                            deployment_id,
+                            attempt_number,
+                            status="build_failed",
+                            build_error=build_error,
+                            finished_at=datetime.utcnow(),
+                        )
+                        logger.warning(
+                            "[AI_SYS] Deployment attempt failed deployment_id=%s attempt=%s/%s reason=%s",
+                            deployment_id,
+                            attempt_number,
+                            max_attempts,
+                            build_error,
+                        )
+                        if attempt_number >= max_attempts:
+                            self._update_deployment(
+                                deployment_id,
+                                status="failed",
+                                error_message=f"Build failed after {attempt_number} attempts: {build_error}",
+                            )
+                            logger.error(
+                                "[AI_SYS] Deployment failed after max attempts deployment_id=%s attempts=%s",
+                                deployment_id,
+                                max_attempts,
+                            )
+                            return
+
+                        self._update_deployment(
+                            deployment_id,
+                            status="retrying",
+                            error_message=f"Attempt {attempt_number} failed; retrying",
+                        )
+                        logger.info(
+                            "[AI_SYS] Deployment retry scheduled deployment_id=%s next_attempt=%s",
+                            deployment_id,
+                            attempt_number + 1,
+                        )
+                    except DeploymentCancelledError:
+                        raise
+                    except Exception as exc:  # noqa: BLE001
+                        self._update_attempt(
+                            deployment_id,
+                            attempt_number,
+                            status="failed",
+                            build_error=str(exc),
+                            finished_at=datetime.utcnow(),
+                        )
+                        logger.error(
+                            "[AI_SYS] Deployment attempt non-retryable failure deployment_id=%s attempt=%s error=%s",
+                            deployment_id,
+                            attempt_number,
+                            exc,
+                        )
+                        raise
         except DeploymentCancelledError:
             logger.warning(
                 "[AI_SYS] Deployment cancelled deployment_id=%s",
@@ -334,13 +590,6 @@ class DeploymentService:
                 exc,
             )
             self._update_deployment(deployment_id, status="failed", error_message=f"Repo not found: {exc}")
-        except BuildFailedError as exc:
-            logger.error(
-                "[AI_SYS] Deployment failed build_error deployment_id=%s error=%s",
-                deployment_id,
-                exc,
-            )
-            self._update_deployment(deployment_id, status="failed", error_message=f"Build failed: {exc}")
         except Exception as exc:  # noqa: BLE001
             logger.exception(
                 "[AI_SYS] Deployment failed unexpected deployment_id=%s error=%s",
@@ -377,6 +626,91 @@ class DeploymentService:
                 deployment_id,
                 list(changes.keys()),
             )
+
+    def _start_attempt(self, deployment_id: str, attempt_number: int, technology: str | None) -> None:
+        with self._lock:
+            record = self._deployments.get(deployment_id)
+            if not record:
+                logger.warning(
+                    "[AI_SYS] Attempt start skipped; record missing deployment_id=%s attempt=%s",
+                    deployment_id,
+                    attempt_number,
+                )
+                return
+            attempt = DeploymentAttemptRecord(
+                attempt=attempt_number,
+                status="running",
+                technology=technology,
+                dockerfile=None,
+                build_error=None,
+                prompt_context_chars=0,
+                started_at=datetime.utcnow(),
+                finished_at=None,
+            )
+            record.current_attempt = attempt_number
+            record.attempts.append(attempt)
+            record.updated_at = datetime.utcnow()
+
+    def _update_attempt(self, deployment_id: str, attempt_number: int, **changes: object) -> None:
+        with self._lock:
+            record = self._deployments.get(deployment_id)
+            if not record:
+                logger.warning(
+                    "[AI_SYS] Attempt update skipped; record missing deployment_id=%s attempt=%s",
+                    deployment_id,
+                    attempt_number,
+                )
+                return
+
+            target: DeploymentAttemptRecord | None = None
+            for item in record.attempts:
+                if item.attempt == attempt_number:
+                    target = item
+                    break
+
+            if not target:
+                logger.warning(
+                    "[AI_SYS] Attempt update skipped; attempt missing deployment_id=%s attempt=%s",
+                    deployment_id,
+                    attempt_number,
+                )
+                return
+
+            for key, value in changes.items():
+                setattr(target, key, value)
+            record.updated_at = datetime.utcnow()
+
+    def _get_max_attempts(self, deployment_id: str) -> int:
+        with self._lock:
+            record = self._deployments.get(deployment_id)
+            if not record:
+                return self._effective_max_attempts()
+            return max(1, min(record.max_attempts, 3))
+
+    def _effective_max_attempts(self) -> int:
+        return max(1, min(int(self.settings.ai_deploy_max_attempts), 3))
+
+    def _effective_retry_context_max_chars(self) -> int:
+        return max(20_000, int(self.settings.ai_deploy_retry_context_max_chars))
+
+    def _attempts_snapshot(self, deployment_id: str) -> list[DeploymentAttemptRecord]:
+        with self._lock:
+            record = self._deployments.get(deployment_id)
+            if not record:
+                return []
+            return [
+                DeploymentAttemptRecord(
+                    attempt=item.attempt,
+                    status=item.status,
+                    technology=item.technology,
+                    dockerfile=item.dockerfile,
+                    build_error=item.build_error,
+                    prompt_context_chars=item.prompt_context_chars,
+                    started_at=item.started_at,
+                    finished_at=item.finished_at,
+                )
+                for item in record.attempts
+            ]
 
     def _assert_not_cancelled(self, deployment_id: str) -> None:
         with self._lock:
@@ -587,22 +921,251 @@ class DeploymentService:
                 return True
         return False
 
-    def _generate_dockerfile(self, context: RepositoryContext) -> str:
+    def _detect_technology(self, repo_dir: Path, context: RepositoryContext) -> str | None:
+        score: dict[str, int] = {name: 0 for name in self.TECHNOLOGY_SIGNATURES}
+        candidates = self._list_repository_files(repo_dir)
+        candidates.extend(context.metadata_files.keys())
+        candidates.extend(context.entrypoints.keys())
+        seen: set[str] = set()
+
+        for raw_path in candidates:
+            relative = raw_path.replace("\\", "/")
+            if relative in seen:
+                continue
+            seen.add(relative)
+            name = Path(relative).name
+            for technology, signatures in self.TECHNOLOGY_SIGNATURES.items():
+                for signature in signatures:
+                    lowered_signature = signature.lower()
+                    lowered_name = name.lower()
+                    lowered_relative = relative.lower()
+                    if lowered_signature.startswith("."):
+                        if lowered_name.endswith(lowered_signature):
+                            score[technology] += 1
+                    elif lowered_name == lowered_signature or lowered_relative.endswith(f"/{lowered_signature}"):
+                        score[technology] += 1
+
+        sorted_score = sorted(score.items(), key=lambda item: item[1], reverse=True)
+        if not sorted_score or sorted_score[0][1] <= 0:
+            logger.info("[AI_SYS] Technology detection result=unknown")
+            return None
+
+        technology = sorted_score[0][0]
+        logger.info(
+            "[AI_SYS] Technology detection result=%s top_score=%s raw=%s",
+            technology,
+            sorted_score[0][1],
+            score,
+        )
+        return technology
+
+    def _list_repository_files(self, repo_dir: Path) -> list[str]:
+        files: list[str] = []
+        for root, dirs, filenames in os.walk(repo_dir):
+            dirs[:] = sorted(directory for directory in dirs if directory not in self.EXCLUDED_DIRS)
+            root_path = Path(root)
+            for filename in sorted(filenames):
+                path = root_path / filename
+                files.append(path.relative_to(repo_dir).as_posix())
+        return files
+
+    def _collect_enriched_files(self, repo_dir: Path, technology: str | None) -> dict[str, str]:
+        patterns: set[str] = set()
+        if technology and technology in self.TECHNOLOGY_BUILD_FILES:
+            patterns.update(self.TECHNOLOGY_BUILD_FILES[technology])
+        else:
+            for group in self.TECHNOLOGY_BUILD_FILES.values():
+                patterns.update(group)
+
+        selected: dict[str, str] = {}
+        for relative in self._list_repository_files(repo_dir):
+            name = Path(relative).name
+            if name in self.COMMON_BUILD_FILES:
+                selected[relative] = self._read_limited(repo_dir / relative)
+                continue
+
+            if any(fnmatch.fnmatch(name, pattern) or fnmatch.fnmatch(relative, pattern) for pattern in patterns):
+                selected[relative] = self._read_limited(repo_dir / relative)
+
+        logger.info(
+            "[AI_SYS] Enriched files collected technology=%s files=%s",
+            technology or "unknown",
+            len(selected),
+        )
+        return selected
+
+    def _build_prompt_context(
+        self,
+        repo_dir: Path,
+        context: RepositoryContext,
+        technology: str | None,
+        attempt_number: int,
+        deployment_id: str,
+    ) -> tuple[dict[str, object], int]:
+        payload: dict[str, object] = {
+            "attempt_number": attempt_number,
+            "detected_technology": technology,
+            "directory_tree": context.directory_tree,
+            "metadata_files": context.metadata_files,
+            "entrypoint_files": context.entrypoints,
+        }
+
+        if attempt_number > 1:
+            attempt_history: list[dict[str, object | None]] = []
+            for item in self._attempts_snapshot(deployment_id):
+                if item.attempt >= attempt_number:
+                    continue
+                attempt_history.append(
+                    {
+                        "attempt": item.attempt,
+                        "status": item.status,
+                        "technology": item.technology,
+                        "dockerfile": item.dockerfile,
+                        "build_error": item.build_error,
+                        "prompt_context_chars": item.prompt_context_chars,
+                        "started_at": item.started_at.isoformat(),
+                        "finished_at": item.finished_at.isoformat() if item.finished_at else None,
+                    }
+                )
+            payload["retry_feedback"] = attempt_history
+            payload["enriched_files"] = self._collect_enriched_files(repo_dir, technology)
+
+        max_chars = self._effective_retry_context_max_chars()
+        payload = self._shrink_prompt_context(payload, max_chars)
+        context_chars = self._prompt_context_size(payload)
+        return payload, context_chars
+
+    def _prompt_context_size(self, payload: dict[str, object]) -> int:
+        return len(json.dumps(payload, ensure_ascii=True, indent=2))
+
+    def _shrink_prompt_context(self, payload: dict[str, object], max_chars: int) -> dict[str, object]:
+        current = self._prompt_context_size(payload)
+        if current <= max_chars:
+            return payload
+
+        logger.info(
+            "[AI_SYS] Prompt context exceeds limit initial_chars=%s max_chars=%s; shrinking",
+            current,
+            max_chars,
+        )
+
+        for _ in range(500):
+            current = self._prompt_context_size(payload)
+            if current <= max_chars:
+                break
+
+            enriched = payload.get("enriched_files")
+            if self._shrink_largest_map_entry(enriched):
+                continue
+
+            feedback = payload.get("retry_feedback")
+            if self._shrink_retry_feedback(feedback):
+                continue
+
+            entrypoints = payload.get("entrypoint_files")
+            if self._shrink_largest_map_entry(entrypoints):
+                continue
+
+            metadata = payload.get("metadata_files")
+            if self._shrink_largest_map_entry(metadata):
+                continue
+
+            directory_tree = payload.get("directory_tree")
+            if isinstance(directory_tree, str) and len(directory_tree) > 2_000:
+                payload["directory_tree"] = self._truncate_text(directory_tree, int(len(directory_tree) * 0.75))
+                continue
+
+            break
+
+        final_size = self._prompt_context_size(payload)
+        if final_size > max_chars:
+            logger.warning(
+                "[AI_SYS] Prompt context still above limit final_chars=%s max_chars=%s",
+                final_size,
+                max_chars,
+            )
+        else:
+            logger.info(
+                "[AI_SYS] Prompt context shrink complete final_chars=%s max_chars=%s",
+                final_size,
+                max_chars,
+            )
+        return payload
+
+    def _shrink_largest_map_entry(self, maybe_map: object) -> bool:
+        if not isinstance(maybe_map, dict) or not maybe_map:
+            return False
+
+        largest_key: object | None = None
+        largest_value_len = -1
+        for key, value in maybe_map.items():
+            if isinstance(value, str) and len(value) > largest_value_len:
+                largest_key = key
+                largest_value_len = len(value)
+
+        if not largest_key:
+            return False
+
+        current_value = maybe_map[largest_key]
+        if not isinstance(current_value, str):
+            maybe_map.pop(largest_key, None)
+            return True
+        if len(current_value) <= 512:
+            maybe_map.pop(largest_key, None)
+            return True
+
+        maybe_map[largest_key] = self._truncate_text(current_value, int(len(current_value) * 0.6))
+        return True
+
+    def _shrink_retry_feedback(self, maybe_feedback: object) -> bool:
+        if not isinstance(maybe_feedback, list) or not maybe_feedback:
+            return False
+
+        for item in reversed(maybe_feedback):
+            if not isinstance(item, dict):
+                continue
+            for key in ("build_error", "dockerfile"):
+                value = item.get(key)
+                if isinstance(value, str) and len(value) > 1_500:
+                    item[key] = self._truncate_text(value, int(len(value) * 0.6))
+                    return True
+
+        if len(maybe_feedback) > 1:
+            maybe_feedback.pop(0)
+            return True
+        return False
+
+    def _truncate_text(self, value: str, limit: int) -> str:
+        if len(value) <= limit:
+            return value
+        return f"{value[:limit]}\n... (truncated for retry context)"
+
+    def _generate_dockerfile(
+        self,
+        prompt_context: dict[str, object],
+        attempt_number: int,
+        max_attempts: int,
+        technology: str | None,
+    ) -> str:
         if not self.settings.PROXYAPI_API_KEY:
             logger.error("[AI_SYS] PROXYAPI_API_KEY is missing")
             raise RuntimeError("PROXYAPI_API_KEY is not configured")
 
         logger.info(
-            "[AI_SYS] ProxyAPI/OpenRouter Dockerfile generation started metadata_files=%s entrypoints=%s",
-            len(context.metadata_files),
-            len(context.entrypoints),
+            "[AI_SYS] ProxyAPI/OpenRouter Dockerfile generation started attempt=%s/%s technology=%s",
+            attempt_number,
+            max_attempts,
+            technology or "unknown",
         )
 
-        prompt_context = {
-            "directory_tree": context.directory_tree,
-            "metadata_files": context.metadata_files,
-            "entrypoint_files": context.entrypoints,
-        }
+        retry_instructions = ""
+        if attempt_number > 1:
+            retry_instructions = (
+                "Retry mode instructions:\n"
+                "- The previous build attempt failed.\n"
+                "- Analyze retry_feedback and fix the root cause in the Dockerfile.\n"
+                "- Prioritize valid dependency restore/build paths and startup command.\n\n"
+            )
 
         prompt = (
             "Generate a production-ready Dockerfile for this repository.\n"
@@ -615,7 +1178,10 @@ class DeploymentService:
             "- Install dependencies from repository metadata.\n"
             "- Add a reliable startup command.\n"
             "- Use production settings and keep image reasonably small.\n"
-            "- Expose a typical app port when identifiable.\n\n"
+            "- Expose a typical app port when identifiable.\n"
+            f"- This is attempt {attempt_number} of {max_attempts}.\n"
+            f"- Detected technology: {technology or 'unknown'}.\n\n"
+            f"{retry_instructions}"
             "Repository context:\n"
             f"{json.dumps(prompt_context, ensure_ascii=True, indent=2)}"
         )

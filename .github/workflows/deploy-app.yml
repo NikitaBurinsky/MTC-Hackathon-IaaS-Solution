@@ -93,6 +93,10 @@ jobs:
             if [ -z "${PROXYAPI_MODEL}" ]; then PROXYAPI_MODEL="deepseek/deepseek-chat"; fi
             PROXYAPI_TIMEOUT_SEC="${{ vars.PROXYAPI_TIMEOUT_SEC }}"
             if [ -z "${PROXYAPI_TIMEOUT_SEC}" ]; then PROXYAPI_TIMEOUT_SEC="120"; fi
+            AI_DEPLOY_MAX_ATTEMPTS="${{ vars.AI_DEPLOY_MAX_ATTEMPTS }}"
+            if [ -z "${AI_DEPLOY_MAX_ATTEMPTS}" ]; then AI_DEPLOY_MAX_ATTEMPTS="3"; fi
+            AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS="${{ vars.AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS }}"
+            if [ -z "${AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS}" ]; then AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS="120000"; fi
             CPU_PRICE_PER_VCPU_MIN="${{ vars.CPU_PRICE_PER_VCPU_MIN }}"
             RAM_PRICE_PER_GB_MIN="${{ vars.RAM_PRICE_PER_GB_MIN }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
@@ -140,6 +144,8 @@ jobs:
             export PROXYAPI_BASE_URL
             export PROXYAPI_MODEL
             export PROXYAPI_TIMEOUT_SEC
+            export AI_DEPLOY_MAX_ATTEMPTS
+            export AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS
             export DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE
