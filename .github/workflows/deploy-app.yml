@@ -86,14 +86,20 @@ jobs:
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
             COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
             COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
-            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
-            GEMINI_PROXY_URL="${{ secrets.GEMINI_PROXY_URL }}"
-            GEMINI_PROXY_SCHEME="${{ secrets.GEMINI_PROXY_SCHEME }}"
-            if [ -z "${GEMINI_PROXY_SCHEME}" ]; then GEMINI_PROXY_SCHEME="http"; fi
-            GEMINI_PROXY_HOST="${{ secrets.GEMINI_PROXY_HOST }}"
-            GEMINI_PROXY_PORT="${{ secrets.GEMINI_PROXY_PORT }}"
-            GEMINI_PROXY_USERNAME="${{ secrets.GEMINI_PROXY_USERNAME }}"
-            GEMINI_PROXY_PASSWORD="${{ secrets.GEMINI_PROXY_PASSWORD }}"
+            DEEPSEEK_API_KEY="${{ secrets.DEEPSEEK_API_KEY }}"
+            DEEPSEEK_API_BASE_URL="${{ vars.DEEPSEEK_API_BASE_URL }}"
+            if [ -z "${DEEPSEEK_API_BASE_URL}" ]; then DEEPSEEK_API_BASE_URL="https://api.deepseek.com"; fi
+            DEEPSEEK_MODEL="${{ vars.DEEPSEEK_MODEL }}"
+            if [ -z "${DEEPSEEK_MODEL}" ]; then DEEPSEEK_MODEL="deepseek-chat"; fi
+            DEEPSEEK_TIMEOUT_SEC="${{ vars.DEEPSEEK_TIMEOUT_SEC }}"
+            if [ -z "${DEEPSEEK_TIMEOUT_SEC}" ]; then DEEPSEEK_TIMEOUT_SEC="120"; fi
+            DEEPSEEK_PROXY_URL="${{ secrets.DEEPSEEK_PROXY_URL }}"
+            DEEPSEEK_PROXY_SCHEME="${{ secrets.DEEPSEEK_PROXY_SCHEME }}"
+            if [ -z "${DEEPSEEK_PROXY_SCHEME}" ]; then DEEPSEEK_PROXY_SCHEME="http"; fi
+            DEEPSEEK_PROXY_HOST="${{ secrets.DEEPSEEK_PROXY_HOST }}"
+            DEEPSEEK_PROXY_PORT="${{ secrets.DEEPSEEK_PROXY_PORT }}"
+            DEEPSEEK_PROXY_USERNAME="${{ secrets.DEEPSEEK_PROXY_USERNAME }}"
+            DEEPSEEK_PROXY_PASSWORD="${{ secrets.DEEPSEEK_PROXY_PASSWORD }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
@@ -106,7 +112,7 @@ jobs:
             DEPLOYMENT_NETWORK_NAME="${{ vars.DEPLOYMENT_NETWORK_NAME }}"
             if [ -z "${DEPLOYMENT_NETWORK_NAME}" ]; then DEPLOYMENT_NETWORK_NAME="iaas-backbone"; fi
 
-            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${GEMINI_API_KEY}" ] || [ -z "${IMAGE_REF}" ]; then
+            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${DEEPSEEK_API_KEY}" ] || [ -z "${IMAGE_REF}" ]; then
               echo "Required secrets/outputs are missing"
               exit 1
             fi
@@ -133,13 +139,16 @@ jobs:
 
             export DATABASE_URL
             export JWT_SECRET
-            export GEMINI_API_KEY
-            export GEMINI_PROXY_URL
-            export GEMINI_PROXY_SCHEME
-            export GEMINI_PROXY_HOST
-            export GEMINI_PROXY_PORT
-            export GEMINI_PROXY_USERNAME
-            export GEMINI_PROXY_PASSWORD
+            export DEEPSEEK_API_KEY
+            export DEEPSEEK_API_BASE_URL
+            export DEEPSEEK_MODEL
+            export DEEPSEEK_TIMEOUT_SEC
+            export DEEPSEEK_PROXY_URL
+            export DEEPSEEK_PROXY_SCHEME
+            export DEEPSEEK_PROXY_HOST
+            export DEEPSEEK_PROXY_PORT
+            export DEEPSEEK_PROXY_USERNAME
+            export DEEPSEEK_PROXY_PASSWORD
             export DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE

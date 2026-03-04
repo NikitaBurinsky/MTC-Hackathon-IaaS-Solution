@@ -12,7 +12,9 @@ from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from threading import Lock
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
+from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, HTTPException, status
@@ -21,11 +23,6 @@ try:
     import docker
 except Exception as exc:  # noqa: BLE001
     raise RuntimeError("Docker SDK is not installed") from exc
-
-try:
-    import google.generativeai as genai
-except Exception as exc:  # noqa: BLE001
-    raise RuntimeError("google-generativeai is not installed") from exc
 
 from app.core.config import get_settings
 from app.schemas.deployment import (
@@ -592,18 +589,16 @@ class DeploymentService:
         return False
 
     def _generate_dockerfile(self, context: RepositoryContext) -> str:
-        if not self.settings.GEMINI_API_KEY:
-            logger.error("[AI_SYS] GEMINI_API_KEY is missing")
-            raise RuntimeError("GEMINI_API_KEY is not configured")
+        if not self.settings.DEEPSEEK_API_KEY:
+            logger.error("[AI_SYS] DEEPSEEK_API_KEY is missing")
+            raise RuntimeError("DEEPSEEK_API_KEY is not configured")
 
         logger.info(
-            "[AI_SYS] Gemini Dockerfile generation started metadata_files=%s entrypoints=%s",
+            "[AI_SYS] DeepSeek Dockerfile generation started metadata_files=%s entrypoints=%s",
             len(context.metadata_files),
             len(context.entrypoints),
         )
-        self._configure_gemini_proxy()
-        genai.configure(api_key=self.settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-2.5-pro")
+        self._configure_deepseek_proxy()
 
         prompt_context = {
             "directory_tree": context.directory_tree,
@@ -627,59 +622,58 @@ class DeploymentService:
             f"{json.dumps(prompt_context, ensure_ascii=True, indent=2)}"
         )
 
-        response = model.generate_content(prompt)
-        dockerfile_text = self._extract_text(response).strip()
+        dockerfile_text = self._call_deepseek_api(prompt).strip()
         logger.info(
-            "[AI_SYS] Gemini response received dockerfile_chars=%s",
+            "[AI_SYS] DeepSeek response received dockerfile_chars=%s",
             len(dockerfile_text),
         )
 
         if not dockerfile_text:
-            logger.error("[AI_SYS] Gemini returned empty Dockerfile")
-            raise RuntimeError("Gemini returned empty Dockerfile")
+            logger.error("[AI_SYS] DeepSeek returned empty Dockerfile")
+            raise RuntimeError("DeepSeek returned empty Dockerfile")
         if "```" in dockerfile_text:
-            logger.error("[AI_SYS] Gemini returned markdown fences in Dockerfile response")
-            raise RuntimeError("Gemini response must not include markdown code fences")
+            logger.error("[AI_SYS] DeepSeek returned markdown fences in Dockerfile response")
+            raise RuntimeError("DeepSeek response must not include markdown code fences")
         if "FROM" not in dockerfile_text.upper():
-            logger.error("[AI_SYS] Gemini Dockerfile validation failed: missing FROM")
-            raise RuntimeError("Gemini returned invalid Dockerfile content")
-        logger.info("[AI_SYS] Gemini Dockerfile validation succeeded")
+            logger.error("[AI_SYS] DeepSeek Dockerfile validation failed: missing FROM")
+            raise RuntimeError("DeepSeek returned invalid Dockerfile content")
+        logger.info("[AI_SYS] DeepSeek Dockerfile validation succeeded")
         return dockerfile_text
 
-    def _configure_gemini_proxy(self) -> None:
-        proxy_url = self._build_gemini_proxy_url()
+    def _configure_deepseek_proxy(self) -> None:
+        proxy_url = self._build_deepseek_proxy_url()
         if not proxy_url:
-            logger.info("[AI_SYS] Gemini proxy is not configured; using direct connection")
+            logger.info("[AI_SYS] DeepSeek proxy is not configured; using direct connection")
             return
 
         os.environ["HTTP_PROXY"] = proxy_url
         os.environ["HTTPS_PROXY"] = proxy_url
         os.environ["http_proxy"] = proxy_url
         os.environ["https_proxy"] = proxy_url
-        logger.info("[AI_SYS] Gemini proxy configured for HTTP(S) traffic")
+        logger.info("[AI_SYS] DeepSeek proxy configured for HTTP(S) traffic")
 
-    def _build_gemini_proxy_url(self) -> str | None:
-        direct_proxy_url = self.settings.gemini_proxy_url.strip()
+    def _build_deepseek_proxy_url(self) -> str | None:
+        direct_proxy_url = self.settings.deepseek_proxy_url.strip()
         if direct_proxy_url:
-            logger.info("[AI_SYS] Gemini proxy using direct proxy URL configuration")
+            logger.info("[AI_SYS] DeepSeek proxy using direct proxy URL configuration")
             return direct_proxy_url
 
-        proxy_host = self.settings.gemini_proxy_host.strip()
+        proxy_host = self.settings.deepseek_proxy_host.strip()
         if not proxy_host:
             return None
 
-        proxy_scheme = self.settings.gemini_proxy_scheme.strip() or "http"
-        proxy_port = self.settings.gemini_proxy_port.strip()
-        proxy_username = self.settings.gemini_proxy_username
-        proxy_password = self.settings.gemini_proxy_password
+        proxy_scheme = self.settings.deepseek_proxy_scheme.strip() or "http"
+        proxy_port = self.settings.deepseek_proxy_port.strip()
+        proxy_username = self.settings.deepseek_proxy_username
+        proxy_password = self.settings.deepseek_proxy_password
 
         auth_part = ""
         if proxy_username and not proxy_password:
-            logger.error("[AI_SYS] Gemini proxy username provided without password")
-            raise RuntimeError("GEMINI proxy password is required when username is configured")
+            logger.error("[AI_SYS] DeepSeek proxy username provided without password")
+            raise RuntimeError("DEEPSEEK proxy password is required when username is configured")
         if proxy_password and not proxy_username:
-            logger.error("[AI_SYS] Gemini proxy password provided without username")
-            raise RuntimeError("GEMINI proxy username is required when password is configured")
+            logger.error("[AI_SYS] DeepSeek proxy password provided without username")
+            raise RuntimeError("DEEPSEEK proxy username is required when password is configured")
         if proxy_username:
             encoded_username = quote(proxy_username, safe="")
             encoded_password = quote(proxy_password, safe="")
@@ -687,7 +681,7 @@ class DeploymentService:
 
         port_part = f":{proxy_port}" if proxy_port else ""
         logger.info(
-            "[AI_SYS] Gemini proxy URL assembled scheme=%s host=%s has_auth=%s has_port=%s",
+            "[AI_SYS] DeepSeek proxy URL assembled scheme=%s host=%s has_auth=%s has_port=%s",
             proxy_scheme,
             proxy_host,
             bool(proxy_username),
@@ -695,28 +689,99 @@ class DeploymentService:
         )
         return f"{proxy_scheme}://{auth_part}{proxy_host}{port_part}"
 
-    def _extract_text(self, response: object) -> str:
-        text = getattr(response, "text", None)
-        if text:
-            logger.debug("[AI_SYS] Gemini response extracted from top-level text")
-            return str(text)
+    def _call_deepseek_api(self, prompt: str) -> str:
+        base_url = self.settings.deepseek_api_base_url.strip()
+        if not base_url:
+            raise RuntimeError("DEEPSEEK_API_BASE_URL is not configured")
 
-        candidates = getattr(response, "candidates", []) or []
-        chunks: list[str] = []
-        for candidate in candidates:
-            content = getattr(candidate, "content", None)
-            if not content:
-                continue
-            parts = getattr(content, "parts", []) or []
-            for part in parts:
-                part_text = getattr(part, "text", "")
-                if part_text:
-                    chunks.append(str(part_text))
-        logger.debug(
-            "[AI_SYS] Gemini response extracted from candidates chunks=%s",
-            len(chunks),
+        endpoint = f"{base_url.rstrip('/')}/chat/completions"
+        payload = {
+            "model": self.settings.deepseek_model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You generate Dockerfiles. Return only raw Dockerfile code without markdown or explanations."
+                    ),
+                },
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0,
+            "stream": False,
+        }
+        body = json.dumps(payload).encode("utf-8")
+        request = Request(
+            endpoint,
+            data=body,
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.settings.DEEPSEEK_API_KEY}",
+            },
         )
-        return "\n".join(chunks)
+        logger.info(
+            "[AI_SYS] DeepSeek API request started endpoint=%s model=%s prompt_chars=%s timeout_sec=%s",
+            endpoint,
+            self.settings.deepseek_model,
+            len(prompt),
+            self.settings.deepseek_timeout_sec,
+        )
+        try:
+            with urlopen(request, timeout=self.settings.deepseek_timeout_sec) as response:
+                response_bytes = response.read()
+                logger.debug(
+                    "[AI_SYS] DeepSeek API response received status=%s bytes=%s",
+                    getattr(response, "status", "unknown"),
+                    len(response_bytes),
+                )
+                response_payload = json.loads(response_bytes.decode("utf-8"))
+        except HTTPError as exc:
+            error_body = exc.read().decode("utf-8", errors="replace")
+            logger.error(
+                "[AI_SYS] DeepSeek API HTTP error status=%s body=%s",
+                exc.code,
+                error_body,
+            )
+            raise RuntimeError(f"DeepSeek API HTTP error {exc.code}: {error_body}") from exc
+        except URLError as exc:
+            logger.error("[AI_SYS] DeepSeek API connection error error=%s", exc)
+            raise RuntimeError(f"DeepSeek API connection error: {exc}") from exc
+        except TimeoutError as exc:
+            logger.error("[AI_SYS] DeepSeek API timeout error=%s", exc)
+            raise RuntimeError(f"DeepSeek API timeout: {exc}") from exc
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("[AI_SYS] DeepSeek API unexpected error error=%s", exc)
+            raise RuntimeError(f"DeepSeek API request failed: {exc}") from exc
+
+        return self._extract_deepseek_text(response_payload)
+
+    def _extract_deepseek_text(self, response_payload: object) -> str:
+        if not isinstance(response_payload, dict):
+            logger.error("[AI_SYS] DeepSeek response payload is not an object")
+            raise RuntimeError("DeepSeek response payload is invalid")
+
+        choices = response_payload.get("choices")
+        if not isinstance(choices, list) or not choices:
+            logger.error("[AI_SYS] DeepSeek response has no choices")
+            raise RuntimeError("DeepSeek response contains no choices")
+
+        first_choice = choices[0]
+        if not isinstance(first_choice, dict):
+            logger.error("[AI_SYS] DeepSeek first choice is invalid")
+            raise RuntimeError("DeepSeek response choice is invalid")
+
+        message = first_choice.get("message")
+        if not isinstance(message, dict):
+            logger.error("[AI_SYS] DeepSeek response message is invalid")
+            raise RuntimeError("DeepSeek response message is invalid")
+
+        content = message.get("content")
+        if not isinstance(content, str):
+            logger.error("[AI_SYS] DeepSeek response content is invalid")
+            raise RuntimeError("DeepSeek response content is invalid")
+
+        logger.debug("[AI_SYS] DeepSeek response text extracted successfully")
+        return content
 
     def _build_and_run(self, repo_dir: Path, tenant_id: int, deployment_id: str) -> tuple[str, str, str, int]:
         image_tag = f"tenant-{tenant_id}-deploy-{deployment_id[:12]}".lower()

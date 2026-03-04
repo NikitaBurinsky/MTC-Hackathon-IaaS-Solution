@@ -58,7 +58,11 @@ DB bootstrap recreates PostgreSQL from scratch each run (container + volume).
 
 Required GitHub Secrets:
 - `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_PORT`
-- `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `DOMAIN`, `GEMINI_API_KEY`
+- `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `DOMAIN`, `DEEPSEEK_API_KEY`
+- `DEEPSEEK_PROXY_URL` (optional, when calling DeepSeek through a proxy URL)
+- `DEEPSEEK_PROXY_USERNAME`, `DEEPSEEK_PROXY_PASSWORD` (optional, when assembling proxy URL from parts)
+- `DEEPSEEK_PROXY_SCHEME`, `DEEPSEEK_PROXY_HOST`, `DEEPSEEK_PROXY_PORT` (optional, proxy URL parts)
+  - `DEEPSEEK_PROXY_URL` has priority over split proxy settings.
 
 Optional GitHub Variables:
 - `VPS_APP_DIR` (default: `/opt/iaas-hackathon`)
@@ -71,3 +75,6 @@ Optional GitHub Variables:
 - `DEPLOYMENT_PUBLIC_SCHEME` (default: `https`)
 - `DEPLOYMENT_NETWORK_NAME` (default: `iaas-backbone`)
 - `NGINX_CONTAINER_NAME` (default: `iaas-nginx`)
+- `DEEPSEEK_API_BASE_URL` (default: `https://api.deepseek.com`)
+- `DEEPSEEK_MODEL` (default: `deepseek-chat`)
+- `DEEPSEEK_TIMEOUT_SEC` (default: `120`)

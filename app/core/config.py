@@ -47,13 +47,16 @@ class Settings:
         self.deployment_public_path_prefix = os.getenv("DEPLOYMENT_PUBLIC_PATH_PREFIX", "hosted")
         self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "https")
 
-        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-        self.gemini_proxy_url = os.getenv("GEMINI_PROXY_URL", "")
-        self.gemini_proxy_scheme = os.getenv("GEMINI_PROXY_SCHEME", "http")
-        self.gemini_proxy_host = os.getenv("GEMINI_PROXY_HOST", "")
-        self.gemini_proxy_port = os.getenv("GEMINI_PROXY_PORT", "")
-        self.gemini_proxy_username = os.getenv("GEMINI_PROXY_USERNAME", "")
-        self.gemini_proxy_password = os.getenv("GEMINI_PROXY_PASSWORD", "")
+        self.DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
+        self.deepseek_api_base_url = os.getenv("DEEPSEEK_API_BASE_URL", "https://api.deepseek.com")
+        self.deepseek_model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+        self.deepseek_timeout_sec = float(os.getenv("DEEPSEEK_TIMEOUT_SEC", "120"))
+        self.deepseek_proxy_url = os.getenv("DEEPSEEK_PROXY_URL", "")
+        self.deepseek_proxy_scheme = os.getenv("DEEPSEEK_PROXY_SCHEME", "http")
+        self.deepseek_proxy_host = os.getenv("DEEPSEEK_PROXY_HOST", "")
+        self.deepseek_proxy_port = os.getenv("DEEPSEEK_PROXY_PORT", "")
+        self.deepseek_proxy_username = os.getenv("DEEPSEEK_PROXY_USERNAME", "")
+        self.deepseek_proxy_password = os.getenv("DEEPSEEK_PROXY_PASSWORD", "")
 
 
 @lru_cache
