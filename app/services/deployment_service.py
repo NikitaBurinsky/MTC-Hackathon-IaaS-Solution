@@ -375,7 +375,7 @@ class DeploymentService:
             raise RuntimeError("GEMINI_API_KEY is not configured")
 
         genai.configure(api_key=self.settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel("gemini-flash-latest")
 
         prompt_context = {
             "directory_tree": context.directory_tree,
