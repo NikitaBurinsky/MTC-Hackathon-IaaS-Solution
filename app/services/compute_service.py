@@ -112,6 +112,7 @@ class ComputeService:
             session.add(operation)
             session.commit()
 
+            container_id: str | None = None
             try:
                 flavor = session.get(Flavor, instance.flavor_id)
                 image = session.get(Image, instance.image_id)
@@ -140,6 +141,15 @@ class ComputeService:
                 session.add(operation)
                 session.commit()
             except Exception as exc:  # noqa: BLE001 - store operation failure in DB
+                if container_id:
+                    try:
+                        provider.stop_instance(container_id)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    try:
+                        provider.remove_instance(container_id)
+                    except Exception:  # noqa: BLE001
+                        pass
                 instance.status = InstanceStatus.ERROR
                 instance.updated_at = datetime.utcnow()
                 operation.status = InstanceOperationStatus.FAILED

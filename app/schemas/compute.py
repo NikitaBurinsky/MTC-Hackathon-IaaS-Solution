@@ -23,7 +23,6 @@ class InstanceRead(SQLModel):
     flavor_id: int
     image_id: int
     status: InstanceStatus
-    docker_container_id: str | None
     ip_address: str | None
     created_at: datetime
     updated_at: datetime
