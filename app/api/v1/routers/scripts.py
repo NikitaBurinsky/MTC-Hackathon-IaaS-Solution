@@ -3,7 +3,12 @@ from sqlmodel import Session
 
 from app.core.deps import get_current_tenant_id
 from app.db.session import get_session
-from app.schemas import MessageResponse, ScriptCreateRequest, ScriptRead, ScriptUpdateRequest
+from app.schemas import (
+    MessageResponse,
+    ScriptCreateRequest,
+    ScriptRead,
+    ScriptUpdateRequest,
+)
 from app.services import ScriptService
 
 router = APIRouter(prefix="/scripts", tags=["scripts"])
@@ -43,7 +48,9 @@ def update_script(
     )
 
 
-@router.delete("/{script_id}", status_code=status.HTTP_200_OK, response_model=MessageResponse)
+@router.delete(
+    "/{script_id}", status_code=status.HTTP_200_OK, response_model=MessageResponse
+)
 def delete_script(
     script_id: int,
     tenant_id: int = Depends(get_current_tenant_id),

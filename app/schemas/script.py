@@ -20,4 +20,3 @@ class ScriptRead(SQLModel):
     body: str
     created_at: datetime
     updated_at: datetime
-

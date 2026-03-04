@@ -12,7 +12,9 @@ class Settings:
         )
         self.jwt_secret = os.getenv("JWT_SECRET", "change-me-in-production")
         self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
-        self.access_token_expire_minutes = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))
+        self.access_token_expire_minutes = int(
+            os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120")
+        )
 
         self.default_plan_name = os.getenv("DEFAULT_PLAN_NAME", "starter")
         self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "1"))
@@ -36,4 +38,3 @@ class Settings:
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

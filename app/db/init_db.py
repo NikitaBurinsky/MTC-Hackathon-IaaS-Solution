@@ -31,7 +31,9 @@ def seed_defaults(session: Session) -> None:
         )
         session.add(flavor)
 
-    image = session.exec(select(Image).where(Image.code == settings.default_image_code)).first()
+    image = session.exec(
+        select(Image).where(Image.code == settings.default_image_code)
+    ).first()
     if not image:
         session.add(
             Image(
@@ -42,7 +44,9 @@ def seed_defaults(session: Session) -> None:
             ),
         )
 
-    secondary = session.exec(select(Image).where(Image.code == settings.secondary_image_code)).first()
+    secondary = session.exec(
+        select(Image).where(Image.code == settings.secondary_image_code)
+    ).first()
     if not secondary:
         session.add(
             Image(
@@ -60,4 +64,3 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         seed_defaults(session)
-

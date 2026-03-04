@@ -38,4 +38,3 @@ def get_usage(
         for item in usage["items"]
     ]
     return UsageResponse(total_charged=usage["total_charged"], items=items)
-

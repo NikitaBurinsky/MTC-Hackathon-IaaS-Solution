@@ -7,7 +7,9 @@ from app.models import Plan, Tenant, User
 
 
 class AuthService:
-    def register(self, session: Session, name: str, email: str, password: str, tenant_name: str) -> tuple[User, Tenant]:
+    def register(
+        self, session: Session, name: str, email: str, password: str, tenant_name: str
+    ) -> tuple[User, Tenant]:
         normalized_name = name.strip()
         normalized_email = email.strip()
         normalized_tenant = tenant_name.strip()
@@ -17,21 +19,27 @@ class AuthService:
                 detail="Username and tenant name are required",
             )
 
-        existing = session.exec(select(User).where(User.email == normalized_email)).first()
+        existing = session.exec(
+            select(User).where(User.email == normalized_email)
+        ).first()
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="User with this email already exists",
             )
 
-        existing_name = session.exec(select(User).where(User.name == normalized_name)).first()
+        existing_name = session.exec(
+            select(User).where(User.name == normalized_name)
+        ).first()
         if existing_name:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="User with this name already exists",
             )
 
-        existing_tenant = session.exec(select(Tenant).where(Tenant.name == normalized_tenant)).first()
+        existing_tenant = session.exec(
+            select(Tenant).where(Tenant.name == normalized_tenant)
+        ).first()
         if existing_tenant:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
@@ -39,7 +47,9 @@ class AuthService:
             )
 
         settings = get_settings()
-        plan = session.exec(select(Plan).where(Plan.name == settings.default_plan_name)).first()
+        plan = session.exec(
+            select(Plan).where(Plan.name == settings.default_plan_name)
+        ).first()
         if not plan:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

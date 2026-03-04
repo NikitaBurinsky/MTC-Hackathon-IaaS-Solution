@@ -22,5 +22,6 @@ def list_images(
     _: int = Depends(get_current_tenant_id),
     session: Session = Depends(get_session),
 ):
-    return session.exec(select(Image).where(Image.is_active == True).order_by(Image.code.asc())).all()  # noqa: E712
-
+    return session.exec(
+        select(Image).where(Image.is_active == True).order_by(Image.code.asc())
+    ).all()  # noqa: E712

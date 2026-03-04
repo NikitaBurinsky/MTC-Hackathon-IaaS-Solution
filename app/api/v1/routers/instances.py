@@ -24,7 +24,9 @@ def list_instances(
     return compute_service.list_instances(session, tenant_id)
 
 
-@router.post("", response_model=InstanceCreateAccepted, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "", response_model=InstanceCreateAccepted, status_code=status.HTTP_202_ACCEPTED
+)
 def create_instance(
     payload: InstanceCreateRequest,
     background_tasks: BackgroundTasks,
@@ -64,7 +66,9 @@ def get_instance(
     return compute_service.get_instance(session, tenant_id, instance_id)
 
 
-@router.delete("/{instance_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)
+@router.delete(
+    "/{instance_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response
+)
 def delete_instance(
     instance_id: int,
     tenant_id: int = Depends(get_current_tenant_id),
@@ -82,4 +86,3 @@ def instance_action(
     session: Session = Depends(get_session),
 ):
     return compute_service.apply_action(session, tenant_id, instance_id, payload.action)
-

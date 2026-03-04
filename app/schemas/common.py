@@ -9,4 +9,3 @@ class MessageResponse(SQLModel):
 
 class ErrorResponse(SQLModel):
     detail: Any
-

@@ -47,4 +47,3 @@ class TaskRunStatus(str, Enum):
 class ScriptSourceType(str, Enum):
     BODY = "body"
     SCRIPT_ID = "script_id"
-

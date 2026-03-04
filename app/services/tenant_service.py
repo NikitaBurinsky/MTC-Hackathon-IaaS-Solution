@@ -8,10 +8,15 @@ class TenantService:
     def get_profile(self, session: Session, tenant_id: int) -> dict:
         tenant = session.get(Tenant, tenant_id)
         if not tenant:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            )
         plan = session.get(Plan, tenant.plan_id)
         if not plan:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Plan not found")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Plan not found",
+            )
 
         return {
             "tenant_id": tenant.id,
@@ -25,4 +30,3 @@ class TenantService:
             },
             "created_at": tenant.created_at,
         }
-

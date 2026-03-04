@@ -36,4 +36,3 @@ class TaskRunRead(SQLModel):
 class TaskDetailResponse(SQLModel):
     task: TaskRead
     runs: list[TaskRunRead]
-

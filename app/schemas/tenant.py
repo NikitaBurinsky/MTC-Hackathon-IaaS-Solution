@@ -16,4 +16,3 @@ class TenantProfileResponse(SQLModel):
     balance_credits: float
     plan: PlanSummary
     created_at: datetime
-

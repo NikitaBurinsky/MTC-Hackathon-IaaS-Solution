@@ -43,10 +43,14 @@ class TaskService:
 
         if script_id:
             script = session.exec(
-                select(Script).where(Script.id == script_id, Script.tenant_id == tenant_id),
+                select(Script).where(
+                    Script.id == script_id, Script.tenant_id == tenant_id
+                ),
             ).first()
             if not script:
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Script not found")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Script not found"
+                )
             source = ScriptSourceType.SCRIPT_ID
             body = script.body
         else:
@@ -64,10 +68,14 @@ class TaskService:
         session.flush()
 
         instances = session.exec(
-            select(Instance).where(Instance.id.in_(instance_ids), Instance.tenant_id == tenant_id),
+            select(Instance).where(
+                Instance.id.in_(instance_ids), Instance.tenant_id == tenant_id
+            ),
         ).all()
         found_ids = {item.id for item in instances}
-        missing = [instance_id for instance_id in instance_ids if instance_id not in found_ids]
+        missing = [
+            instance_id for instance_id in instance_ids if instance_id not in found_ids
+        ]
         if missing:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -126,7 +134,11 @@ class TaskService:
                     )
                     run.stdout = stdout
                     run.stderr = stderr
-                    run.status = TaskRunStatus.SUCCESS if exit_code == 0 else TaskRunStatus.FAILED
+                    run.status = (
+                        TaskRunStatus.SUCCESS
+                        if exit_code == 0
+                        else TaskRunStatus.FAILED
+                    )
                 except Exception as exc:  # noqa: BLE001
                     run.status = TaskRunStatus.FAILED
                     run.stderr = str(exc)
@@ -150,7 +162,9 @@ class TaskService:
 
     def list_tasks(self, session: Session, tenant_id: int) -> list[Task]:
         return session.exec(
-            select(Task).where(Task.tenant_id == tenant_id).order_by(Task.created_at.desc()),
+            select(Task)
+            .where(Task.tenant_id == tenant_id)
+            .order_by(Task.created_at.desc()),
         ).all()
 
     def get_task(self, session: Session, tenant_id: int, task_id: int) -> Task:
@@ -158,9 +172,10 @@ class TaskService:
             select(Task).where(Task.id == task_id, Task.tenant_id == tenant_id),
         ).first()
         if not task:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
+            )
         return task
 
     def list_task_runs(self, session: Session, task_id: int) -> list[TaskRun]:
         return session.exec(select(TaskRun).where(TaskRun.task_id == task_id)).all()
-

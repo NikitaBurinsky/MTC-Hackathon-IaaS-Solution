@@ -16,4 +16,3 @@ def get_profile(
     session: Session = Depends(get_session),
 ):
     return tenant_service.get_profile(session, tenant_id)
-

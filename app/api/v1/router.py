@@ -18,4 +18,3 @@ api_router.include_router(instances_router)
 api_router.include_router(tasks_router)
 api_router.include_router(scripts_router)
 api_router.include_router(networks_router)
-

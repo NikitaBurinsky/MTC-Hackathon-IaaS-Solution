@@ -22,4 +22,3 @@ class NetworkRead(SQLModel):
     cidr: str
     description: str | None
     created_at: datetime
-

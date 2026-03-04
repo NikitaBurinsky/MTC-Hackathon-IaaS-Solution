@@ -2,7 +2,12 @@ from datetime import datetime
 
 from sqlmodel import SQLModel
 
-from app.models import ActionType, InstanceOperationStatus, InstanceOperationType, InstanceStatus
+from app.models import (
+    ActionType,
+    InstanceOperationStatus,
+    InstanceOperationType,
+    InstanceStatus,
+)
 
 
 class InstanceCreateRequest(SQLModel):
@@ -44,4 +49,3 @@ class InstanceOperationRead(SQLModel):
     error_message: str | None
     created_at: datetime
     finished_at: datetime | None
-

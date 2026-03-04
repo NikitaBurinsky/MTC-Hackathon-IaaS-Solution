@@ -7,11 +7,22 @@ from app.models import Network
 class NetworkService:
     def list_networks(self, session: Session, tenant_id: int) -> list[Network]:
         return session.exec(
-            select(Network).where(Network.tenant_id == tenant_id).order_by(Network.created_at.desc()),
+            select(Network)
+            .where(Network.tenant_id == tenant_id)
+            .order_by(Network.created_at.desc()),
         ).all()
 
-    def create_network(self, session: Session, tenant_id: int, name: str, cidr: str, description: str | None) -> Network:
-        network = Network(tenant_id=tenant_id, name=name, cidr=cidr, description=description)
+    def create_network(
+        self,
+        session: Session,
+        tenant_id: int,
+        name: str,
+        cidr: str,
+        description: str | None,
+    ) -> Network:
+        network = Network(
+            tenant_id=tenant_id, name=name, cidr=cidr, description=description
+        )
         session.add(network)
         session.commit()
         session.refresh(network)
@@ -19,10 +30,14 @@ class NetworkService:
 
     def get_network(self, session: Session, tenant_id: int, network_id: int) -> Network:
         network = session.exec(
-            select(Network).where(Network.id == network_id, Network.tenant_id == tenant_id),
+            select(Network).where(
+                Network.id == network_id, Network.tenant_id == tenant_id
+            ),
         ).first()
         if not network:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Network not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Network not found"
+            )
         return network
 
     def update_network(
@@ -50,4 +65,3 @@ class NetworkService:
         network = self.get_network(session, tenant_id, network_id)
         session.delete(network)
         session.commit()
-

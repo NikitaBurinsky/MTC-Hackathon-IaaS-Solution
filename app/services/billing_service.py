@@ -8,13 +8,20 @@ from app.models import Flavor, Instance, InstanceStatus, Plan, ResourceUsageLog,
 
 
 class BillingService:
-    def get_tenant_and_plan(self, session: Session, tenant_id: int) -> tuple[Tenant, Plan]:
+    def get_tenant_and_plan(
+        self, session: Session, tenant_id: int
+    ) -> tuple[Tenant, Plan]:
         tenant = session.get(Tenant, tenant_id)
         if not tenant:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"
+            )
         plan = session.get(Plan, tenant.plan_id)
         if not plan:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Plan not found")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Plan not found",
+            )
         return tenant, plan
 
     def get_quota(self, session: Session, tenant_id: int) -> dict:
@@ -42,7 +49,9 @@ class BillingService:
             "balance_credits": float(tenant.balance_credits),
         }
 
-    def assert_can_allocate(self, session: Session, tenant_id: int, flavor: Flavor) -> None:
+    def assert_can_allocate(
+        self, session: Session, tenant_id: int, flavor: Flavor
+    ) -> None:
         quota = self.get_quota(session, tenant_id)
         if quota["balance_credits"] <= 0:
             raise HTTPException(
@@ -50,9 +59,13 @@ class BillingService:
                 detail="Insufficient credits to create a new instance",
             )
         if quota["used_cpu"] + flavor.cpu > quota["max_cpu"]:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="CPU quota exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="CPU quota exceeded"
+            )
         if quota["used_ram_mb"] + flavor.ram_mb > quota["max_ram_mb"]:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="RAM quota exceeded")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="RAM quota exceeded"
+            )
 
     def open_usage_interval(self, session: Session, instance: Instance) -> None:
         session.add(
@@ -108,4 +121,3 @@ class BillingService:
             "items": logs,
             "total_charged": total_charged,
         }
-

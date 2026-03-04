@@ -26,4 +26,3 @@ class UsageItem(SQLModel):
 class UsageResponse(SQLModel):
     total_charged: float
     items: list[UsageItem]
-

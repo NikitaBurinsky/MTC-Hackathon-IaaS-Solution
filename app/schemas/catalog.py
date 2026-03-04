@@ -19,4 +19,3 @@ class ImageRead(SQLModel):
     display_name: str
     is_active: bool
     created_at: datetime
-

@@ -31,15 +31,23 @@ class ComputeService:
 
     def list_instances(self, session: Session, tenant_id: int) -> list[Instance]:
         return session.exec(
-            select(Instance).where(Instance.tenant_id == tenant_id).order_by(Instance.created_at.desc()),
+            select(Instance)
+            .where(Instance.tenant_id == tenant_id)
+            .order_by(Instance.created_at.desc()),
         ).all()
 
-    def get_instance(self, session: Session, tenant_id: int, instance_id: int) -> Instance:
+    def get_instance(
+        self, session: Session, tenant_id: int, instance_id: int
+    ) -> Instance:
         instance = session.exec(
-            select(Instance).where(Instance.id == instance_id, Instance.tenant_id == tenant_id),
+            select(Instance).where(
+                Instance.id == instance_id, Instance.tenant_id == tenant_id
+            ),
         ).first()
         if not instance:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Instance not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Instance not found"
+            )
         return instance
 
     def request_instance_creation(
@@ -53,11 +61,15 @@ class ComputeService:
     ) -> tuple[Instance, InstanceOperation]:
         flavor = session.get(Flavor, flavor_id)
         if not flavor:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flavor not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Flavor not found"
+            )
 
         image = session.get(Image, image_id)
         if not image or not image.is_active:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Image not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Image not found"
+            )
 
         self.billing_service.assert_can_allocate(session, tenant_id, flavor)
 
@@ -83,7 +95,9 @@ class ComputeService:
         session.refresh(instance)
         session.refresh(operation)
 
-        background_tasks.add_task(self._provision_instance_task, instance.id, operation.id)
+        background_tasks.add_task(
+            self._provision_instance_task, instance.id, operation.id
+        )
         return instance, operation
 
     def _provision_instance_task(self, instance_id: int, operation_id: int) -> None:
@@ -135,7 +149,9 @@ class ComputeService:
                 session.add(operation)
                 session.commit()
 
-    def get_operation(self, session: Session, tenant_id: int, operation_id: int) -> InstanceOperation:
+    def get_operation(
+        self, session: Session, tenant_id: int, operation_id: int
+    ) -> InstanceOperation:
         operation = session.exec(
             select(InstanceOperation).where(
                 InstanceOperation.id == operation_id,
@@ -143,10 +159,14 @@ class ComputeService:
             ),
         ).first()
         if not operation:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Operation not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Operation not found"
+            )
         return operation
 
-    def delete_instance(self, session: Session, tenant_id: int, instance_id: int) -> None:
+    def delete_instance(
+        self, session: Session, tenant_id: int, instance_id: int
+    ) -> None:
         instance = self.get_instance(session, tenant_id, instance_id)
         if instance.status == InstanceStatus.TERMINATED:
             return
@@ -199,10 +219,14 @@ class ComputeService:
         session.add(operation)
         session.commit()
 
-    def apply_action(self, session: Session, tenant_id: int, instance_id: int, action: ActionType) -> Instance:
+    def apply_action(
+        self, session: Session, tenant_id: int, instance_id: int, action: ActionType
+    ) -> Instance:
         instance = self.get_instance(session, tenant_id, instance_id)
         if instance.status == InstanceStatus.TERMINATED:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Instance is terminated")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail="Instance is terminated"
+            )
 
         provider = get_docker_provider()
 
@@ -210,7 +234,10 @@ class ComputeService:
             if instance.status == InstanceStatus.RUNNING:
                 return instance
             if not instance.docker_container_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Container ID is missing")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Container ID is missing",
+                )
             provider.start_instance(instance.docker_container_id)
             instance.status = InstanceStatus.RUNNING
             instance.updated_at = datetime.utcnow()
@@ -229,7 +256,10 @@ class ComputeService:
                     detail="Only RUNNING instance can be stopped",
                 )
             if not instance.docker_container_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Container ID is missing")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Container ID is missing",
+                )
             provider.stop_instance(instance.docker_container_id)
             self.billing_service.close_open_usage_interval(session, instance)
             instance.status = InstanceStatus.STOPPED
@@ -246,7 +276,10 @@ class ComputeService:
                     detail="Only RUNNING instance can be rebooted",
                 )
             if not instance.docker_container_id:
-                raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Container ID is missing")
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Container ID is missing",
+                )
             provider.reboot_instance(instance.docker_container_id)
             instance.updated_at = datetime.utcnow()
             session.add(instance)
@@ -254,5 +287,6 @@ class ComputeService:
             session.refresh(instance)
             return instance
 
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported action")
-
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported action"
+        )

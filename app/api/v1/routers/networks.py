@@ -3,7 +3,12 @@ from sqlmodel import Session
 
 from app.core.deps import get_current_tenant_id
 from app.db.session import get_session
-from app.schemas import MessageResponse, NetworkCreateRequest, NetworkRead, NetworkUpdateRequest
+from app.schemas import (
+    MessageResponse,
+    NetworkCreateRequest,
+    NetworkRead,
+    NetworkUpdateRequest,
+)
 from app.services import NetworkService
 
 router = APIRouter(prefix="/networks", tags=["networks"])
@@ -59,7 +64,9 @@ def update_network(
     )
 
 
-@router.delete("/{network_id}", status_code=status.HTTP_200_OK, response_model=MessageResponse)
+@router.delete(
+    "/{network_id}", status_code=status.HTTP_200_OK, response_model=MessageResponse
+)
 def delete_network(
     network_id: int,
     tenant_id: int = Depends(get_current_tenant_id),

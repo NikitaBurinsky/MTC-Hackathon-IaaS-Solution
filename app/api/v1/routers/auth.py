@@ -27,7 +27,9 @@ async def get_login_payload(request: Request) -> LoginRequest:
     return LoginRequest(email=email, password=password)
 
 
-@router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED
+)
 def register(payload: RegisterRequest, session: Session = Depends(get_session)):
     user, tenant = auth_service.register(
         session=session,
@@ -47,6 +49,11 @@ def register(payload: RegisterRequest, session: Session = Depends(get_session)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(payload: LoginRequest = Depends(get_login_payload), session: Session = Depends(get_session)):
-    token = auth_service.login(session=session, email=payload.email, password=payload.password)
+def login(
+    payload: LoginRequest = Depends(get_login_payload),
+    session: Session = Depends(get_session),
+):
+    token = auth_service.login(
+        session=session, email=payload.email, password=payload.password
+    )
     return TokenResponse(access_token=token)

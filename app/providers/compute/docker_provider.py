@@ -25,7 +25,9 @@ class DockerProvider:
         safe_name = safe_name or "instance"
         return f"{safe_name}-{uuid4().hex[:8]}"
 
-    def create_instance(self, base_name: str, image_ref: str, cpu: int, ram_mb: int) -> str:
+    def create_instance(
+        self, base_name: str, image_ref: str, cpu: int, ram_mb: int
+    ) -> str:
         self.client.images.pull(image_ref)
         container = self.client.containers.create(
             image=image_ref,
@@ -62,8 +64,16 @@ class DockerProvider:
     def exec_script(self, container_id: str, script_body: str) -> tuple[int, str, str]:
         container = self.client.containers.get(container_id)
         result = container.exec_run(cmd=["/bin/sh", "-c", script_body], demux=True)
-        stdout = (result.output[0] or b"").decode("utf-8", errors="replace") if result.output else ""
-        stderr = (result.output[1] or b"").decode("utf-8", errors="replace") if result.output else ""
+        stdout = (
+            (result.output[0] or b"").decode("utf-8", errors="replace")
+            if result.output
+            else ""
+        )
+        stderr = (
+            (result.output[1] or b"").decode("utf-8", errors="replace")
+            if result.output
+            else ""
+        )
         return result.exit_code, stdout, stderr
 
 
