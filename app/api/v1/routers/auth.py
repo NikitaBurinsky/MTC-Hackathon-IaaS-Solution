@@ -69,8 +69,8 @@ def register(
 
 @router.post("/login", response_model=TokenResponse)
 def login(
-    payload: LoginRequest = Depends(get_login_payload),
     response: Response,
+    payload: LoginRequest = Depends(get_login_payload),
     session: Session = Depends(get_session),
 ):
     token = auth_service.login(
