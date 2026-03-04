@@ -12,6 +12,7 @@
 - `docker-compose up -d` starts the local Postgres container.
 - `pip install -r requirements.txt` or `uv sync` installs dependencies (Python >= 3.13).
 - `uvicorn app.main:app --reload` runs the API locally (or `uv run uvicorn app.main:app --reload`).
+- When adding dependencies, update both `requirements.txt` and `pyproject.toml`.
 
 ## Coding Style & Naming Conventions
 - Follow existing Python style: 4-space indentation, PEP 8 conventions, and grouped imports (stdlib, third-party, local).
