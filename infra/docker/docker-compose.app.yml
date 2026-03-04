@@ -7,9 +7,13 @@
       APP_NAME: ${APP_NAME:-Hackathon IaaS API}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/iaas}
       JWT_SECRET: ${JWT_SECRET:-change-me}
+      DOMAIN: ${DOMAIN:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DEPLOYMENT_NETWORK_NAME: ${DEPLOYMENT_NETWORK_NAME:-iaas-backbone}
+      NGINX_CONTAINER_NAME: ${NGINX_CONTAINER_NAME:-iaas-nginx}
+      DEPLOYMENT_PUBLIC_PATH_PREFIX: ${DEPLOYMENT_PUBLIC_PATH_PREFIX:-hosted}
+      DEPLOYMENT_PUBLIC_SCHEME: ${DEPLOYMENT_PUBLIC_SCHEME:-https}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-120}
-      COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
@@ -19,6 +23,7 @@
     image: nginx:1.27-alpine
     container_name: iaas-nginx
     restart: unless-stopped
+    command: /bin/sh -c "mkdir -p /etc/nginx/deployment-locations && nginx -g 'daemon off;'"
     ports:
       - "80:80"
       - "443:443"
@@ -32,5 +37,5 @@
 
 networks:
   backbone:
-    name: iaas-backbone
+    name: ${DEPLOYMENT_NETWORK_NAME:-iaas-backbone}
     external: true

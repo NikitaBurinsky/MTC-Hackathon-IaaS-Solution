@@ -86,11 +86,20 @@ jobs:
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
             COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
             COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
+            GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+            DEPLOYMENT_PUBLIC_PATH_PREFIX="${{ vars.DEPLOYMENT_PUBLIC_PATH_PREFIX }}"
+            if [ -z "${DEPLOYMENT_PUBLIC_PATH_PREFIX}" ]; then DEPLOYMENT_PUBLIC_PATH_PREFIX="hosted"; fi
+            DEPLOYMENT_PUBLIC_SCHEME="${{ vars.DEPLOYMENT_PUBLIC_SCHEME }}"
+            if [ -z "${DEPLOYMENT_PUBLIC_SCHEME}" ]; then DEPLOYMENT_PUBLIC_SCHEME="https"; fi
+            NGINX_CONTAINER_NAME="${{ vars.NGINX_CONTAINER_NAME }}"
+            if [ -z "${NGINX_CONTAINER_NAME}" ]; then NGINX_CONTAINER_NAME="iaas-nginx"; fi
+            DEPLOYMENT_NETWORK_NAME="${{ vars.DEPLOYMENT_NETWORK_NAME }}"
+            if [ -z "${DEPLOYMENT_NETWORK_NAME}" ]; then DEPLOYMENT_NETWORK_NAME="iaas-backbone"; fi
 
-            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${IMAGE_REF}" ]; then
+            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${GEMINI_API_KEY}" ] || [ -z "${IMAGE_REF}" ]; then
               echo "Required secrets/outputs are missing"
               exit 1
             fi
@@ -106,7 +115,7 @@ jobs:
             sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/infra/nginx/nginx.conf"
             sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/infra/nginx/nginx.https.template.conf"
 
-            docker network inspect iaas-backbone >/dev/null 2>&1 || docker network create iaas-backbone
+            docker network inspect "${DEPLOYMENT_NETWORK_NAME}" >/dev/null 2>&1 || docker network create "${DEPLOYMENT_NETWORK_NAME}"
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf"; fi
@@ -117,9 +126,14 @@ jobs:
 
             export DATABASE_URL
             export JWT_SECRET
+            export GEMINI_API_KEY
             export DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE
+            export DEPLOYMENT_PUBLIC_PATH_PREFIX
+            export DEPLOYMENT_PUBLIC_SCHEME
+            export NGINX_CONTAINER_NAME
+            export DEPLOYMENT_NETWORK_NAME
             export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
             export APP_IMAGE="${IMAGE_REF}"
 

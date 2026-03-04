@@ -41,6 +41,14 @@ class Settings:
         self.secondary_image_ref = os.getenv("SECONDARY_IMAGE_REF", "alpine:3.20")
         self.secondary_image_name = os.getenv("SECONDARY_IMAGE_NAME", "Alpine 3.20")
 
+        self.domain = os.getenv("DOMAIN", "")
+        self.deployment_network_name = os.getenv("DEPLOYMENT_NETWORK_NAME", "iaas-backbone")
+        self.nginx_container_name = os.getenv("NGINX_CONTAINER_NAME", "iaas-nginx")
+        self.deployment_public_path_prefix = os.getenv("DEPLOYMENT_PUBLIC_PATH_PREFIX", "hosted")
+        self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "https")
+
+        self.GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
 
 @lru_cache
 def get_settings() -> Settings:
