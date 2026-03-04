@@ -93,6 +93,8 @@ jobs:
             if [ -z "${PROXYAPI_MODEL}" ]; then PROXYAPI_MODEL="deepseek/deepseek-chat"; fi
             PROXYAPI_TIMEOUT_SEC="${{ vars.PROXYAPI_TIMEOUT_SEC }}"
             if [ -z "${PROXYAPI_TIMEOUT_SEC}" ]; then PROXYAPI_TIMEOUT_SEC="120"; fi
+            CPU_PRICE_PER_VCPU_MIN="${{ vars.CPU_PRICE_PER_VCPU_MIN }}"
+            RAM_PRICE_PER_GB_MIN="${{ vars.RAM_PRICE_PER_GB_MIN }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
