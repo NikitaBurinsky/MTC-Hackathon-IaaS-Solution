@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 
@@ -18,6 +19,7 @@ from app.models import (
 )
 from app.providers.compute.docker_provider import get_docker_provider
 
+logger = logging.getLogger(__name__)
 
 class TaskService:
     _max_workers = 4
@@ -156,6 +158,12 @@ class TaskService:
             except Exception as exc:  # noqa: BLE001
                 run.status = TaskRunStatus.FAILED
                 run.stderr = str(exc)
+                logger.warning(
+                    "Task run execution failed run_id=%s instance_id=%s",
+                    run.id,
+                    run.instance_id,
+                    exc_info=True,
+                )
 
             run.finished_at = datetime.utcnow()
             session.add(run)
@@ -180,14 +188,21 @@ class TaskService:
             return
 
         with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-            futures = [
-                executor.submit(self._execute_task_run, run_id) for run_id in run_ids
-            ]
-            for future in as_completed(futures):
+            future_map = {
+                executor.submit(self._execute_task_run, run_id): run_id
+                for run_id in run_ids
+            }
+            for future in as_completed(future_map):
+                run_id = future_map[future]
                 try:
                     future.result()
                 except Exception:  # noqa: BLE001
-                    pass
+                    logger.warning(
+                        "Task run failed in executor task_id=%s run_id=%s",
+                        task_id,
+                        run_id,
+                        exc_info=True,
+                    )
 
         with Session(engine) as session:
             task = session.get(Task, task_id)
