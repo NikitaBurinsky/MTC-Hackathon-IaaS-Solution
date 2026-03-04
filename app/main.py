@@ -86,7 +86,8 @@ app.add_middleware(
     allow_origins=[
         "https://api.formatis.online",
         "https://formatis.online",
-        "https://mts-hackathon.vercel.app",
+        "https://www.formatis.online",
+        "https://api.formatis.online",
         "http://localhost",
         "http://localhost:80",
         "http://localhost:8000",
