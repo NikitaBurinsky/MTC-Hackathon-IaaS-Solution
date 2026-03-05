@@ -2,13 +2,6 @@ name: Build SSH Images
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - dev
-      - main
-    paths:
-      - "infra/docker/ssh-images/**"
-      - ".github/workflows/build-ssh-images.yml"
 
 permissions:
   contents: read
