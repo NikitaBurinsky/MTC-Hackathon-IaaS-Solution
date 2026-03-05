@@ -1,6 +1,7 @@
 FROM docker:24-dind
 
-RUN apk del openssh-client-default >/dev/null 2>&1 || true \
+RUN apk update \
+    && apk upgrade --no-cache \
     && apk add --no-cache openssh-server
 
 RUN mkdir -p /var/run/sshd \
