@@ -25,6 +25,7 @@ from app.services.billing_service import BillingService
 
 logger = logging.getLogger(__name__)
 
+
 class ComputeService:
     def __init__(self) -> None:
         self.billing_service = BillingService()
@@ -273,6 +274,33 @@ class ComputeService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Operation not found"
             )
         return operation
+
+    def reset_ssh_password(
+        self, session: Session, tenant_id: int, instance_id: int
+    ) -> tuple[Instance, str]:
+        instance = self.get_instance(session, tenant_id, instance_id)
+        if instance.status != InstanceStatus.RUNNING or not instance.docker_container_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Instance is not RUNNING",
+            )
+        password = secrets.token_urlsafe(16)
+        command = f"echo '{instance.ssh_username}:{password}' | chpasswd"
+        exit_code, _, stderr = get_docker_provider().exec_script(
+            instance.docker_container_id,
+            command,
+        )
+        if exit_code != 0:
+            logger.warning(
+                "Failed to reset SSH password instance_id=%s stderr=%s",
+                instance.id,
+                stderr,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to reset SSH password",
+            )
+        return instance, password
 
     def delete_instance(
         self, session: Session, tenant_id: int, instance_id: int
