@@ -42,6 +42,12 @@ class InstanceCreateAccepted(SQLModel):
     instance_id: int
     provisioning_operation_id: int
     status: InstanceStatus
+    ssh_host: str
+    ssh_port: int
+    ssh_username: str
+    ssh_password: str
+    postgres_username: str | None = None
+    postgres_password: str | None = None
 
 
 class InstanceActionRequest(SQLModel):

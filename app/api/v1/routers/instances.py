@@ -1,6 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, Depends, Response, status
 from sqlmodel import Session
 
+from app.core.config import get_settings
 from app.core.deps import get_current_tenant_id
 from app.db.session import get_session
 from app.schemas import (
@@ -33,18 +34,27 @@ def create_instance(
     tenant_id: int = Depends(get_current_tenant_id),
     session: Session = Depends(get_session),
 ):
-    instance, operation = compute_service.request_instance_creation(
-        session=session,
-        background_tasks=background_tasks,
-        tenant_id=tenant_id,
-        name=payload.name,
-        flavor_id=payload.flavor_id,
-        image_id=payload.image_id,
+    instance, operation, ssh_password, postgres_password = (
+        compute_service.request_instance_creation(
+            session=session,
+            background_tasks=background_tasks,
+            tenant_id=tenant_id,
+            name=payload.name,
+            flavor_id=payload.flavor_id,
+            image_id=payload.image_id,
+        )
     )
+    settings = get_settings()
     return InstanceCreateAccepted(
         instance_id=instance.id,
         provisioning_operation_id=operation.id,
         status=instance.status,
+        ssh_host=settings.ssh_default_host,
+        ssh_port=instance.ssh_port,
+        ssh_username=instance.ssh_username,
+        ssh_password=ssh_password,
+        postgres_username=instance.postgres_username,
+        postgres_password=postgres_password,
     )
 
 

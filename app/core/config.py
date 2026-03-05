@@ -22,6 +22,10 @@ class Settings:
         )
         self.cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
         self.cookie_secure = _env_bool("COOKIE_SECURE", "false")
+        self.ssh_port_range_start = int(os.getenv("SSH_PORT_RANGE_START", "22000"))
+        self.ssh_port_range_end = int(os.getenv("SSH_PORT_RANGE_END", "22999"))
+        self.ssh_username_prefix = os.getenv("SSH_USERNAME_PREFIX", "tenant")
+        self.ssh_default_host = os.getenv("SSH_DEFAULT_HOST", "api.formatis.online")
 
         self.default_plan_name = os.getenv("DEFAULT_PLAN_NAME", "starter")
         self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "4"))
