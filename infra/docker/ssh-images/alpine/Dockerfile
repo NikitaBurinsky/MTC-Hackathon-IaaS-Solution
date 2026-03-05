@@ -1,6 +1,6 @@
 FROM alpine:3.20
 
-RUN apk add --no-cache openssh shadow
+RUN apk add --no-cache openssh-server
 
 RUN mkdir -p /var/run/sshd \
     && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config \
