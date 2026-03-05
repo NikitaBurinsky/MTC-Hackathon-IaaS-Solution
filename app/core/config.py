@@ -31,8 +31,8 @@ class Settings:
         self.ssh_default_host = os.getenv("SSH_DEFAULT_HOST", "api.formatis.online")
 
         self.default_plan_name = os.getenv("DEFAULT_PLAN_NAME", "starter")
-        self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "4"))
-        self.default_plan_ram_mb = int(os.getenv("DEFAULT_PLAN_RAM_MB", "4096"))
+        self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "8"))
+        self.default_plan_ram_mb = int(os.getenv("DEFAULT_PLAN_RAM_MB", "16384"))
         self.initial_credits = float(os.getenv("INITIAL_CREDITS", "100"))
 
         self.default_flavor_name = os.getenv("DEFAULT_FLAVOR_NAME", "t2.micro")

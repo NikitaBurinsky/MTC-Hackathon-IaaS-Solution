@@ -102,6 +102,10 @@ jobs:
             if [ -z "${AI_DEPLOY_MAX_ATTEMPTS}" ]; then AI_DEPLOY_MAX_ATTEMPTS="3"; fi
             AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS="${{ vars.AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS }}"
             if [ -z "${AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS}" ]; then AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS="120000"; fi
+            DEFAULT_PLAN_CPU="${{ vars.DEFAULT_PLAN_CPU }}"
+            if [ -z "${DEFAULT_PLAN_CPU}" ]; then DEFAULT_PLAN_CPU="8"; fi
+            DEFAULT_PLAN_RAM_MB="${{ vars.DEFAULT_PLAN_RAM_MB }}"
+            if [ -z "${DEFAULT_PLAN_RAM_MB}" ]; then DEFAULT_PLAN_RAM_MB="16384"; fi
             CPU_PRICE_PER_VCPU_MIN="${{ vars.CPU_PRICE_PER_VCPU_MIN }}"
             RAM_PRICE_PER_GB_MIN="${{ vars.RAM_PRICE_PER_GB_MIN }}"
             IMAGE_REF="${{ needs.build-and-push.outputs.image_ref }}"
@@ -155,6 +159,8 @@ jobs:
             export PROXYAPI_TIMEOUT_SEC
             export AI_DEPLOY_MAX_ATTEMPTS
             export AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS
+            export DEFAULT_PLAN_CPU
+            export DEFAULT_PLAN_RAM_MB
             export DOMAIN
             export DEPLOYMENT_HOST_DOMAIN
             export COOKIE_SAMESITE
