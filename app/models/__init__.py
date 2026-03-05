@@ -8,6 +8,8 @@ from app.models.enums import (
     TaskStatus,
 )
 from app.models.models import (
+    Deployment,
+    DeploymentAttempt,
     Flavor,
     Image,
     Instance,
@@ -24,6 +26,8 @@ from app.models.models import (
 
 __all__ = [
     "ActionType",
+    "Deployment",
+    "DeploymentAttempt",
     "Flavor",
     "Image",
     "Instance",

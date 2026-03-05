@@ -45,11 +45,12 @@ class Settings:
         self.ram_price_per_gb_min = float(os.getenv("RAM_PRICE_PER_GB_MIN", "5"))
 
         self.domain = os.getenv("DOMAIN", "")
+        self.deployment_host_domain = os.getenv("DEPLOYMENT_HOST_DOMAIN", "")
         self.deployment_network_name = os.getenv(
             "DEPLOYMENT_NETWORK_NAME", "iaas-backbone"
         )
         self.nginx_container_name = os.getenv("NGINX_CONTAINER_NAME", "iaas-nginx")
-        self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "http")
+        self.deployment_public_scheme = os.getenv("DEPLOYMENT_PUBLIC_SCHEME", "https")
         self.deployment_tls_cert_path = os.getenv("DEPLOYMENT_TLS_CERT_PATH", "")
         self.deployment_tls_key_path = os.getenv("DEPLOYMENT_TLS_KEY_PATH", "")
 

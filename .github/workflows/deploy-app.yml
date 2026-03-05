@@ -82,6 +82,7 @@ jobs:
             if [ -z "${APP_DIR}" ]; then APP_DIR="/opt/iaas-hackathon"; fi
 
             DOMAIN="${{ secrets.DOMAIN }}"
+            DEPLOYMENT_HOST_DOMAIN="${{ vars.DEPLOYMENT_HOST_DOMAIN }}"
             JWT_SECRET="${{ secrets.JWT_SECRET }}"
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
             COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
@@ -103,7 +104,7 @@ jobs:
             GHCR_USER="${{ github.actor }}"
             GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
             DEPLOYMENT_PUBLIC_SCHEME="${{ vars.DEPLOYMENT_PUBLIC_SCHEME }}"
-            if [ -z "${DEPLOYMENT_PUBLIC_SCHEME}" ]; then DEPLOYMENT_PUBLIC_SCHEME="http"; fi
+            if [ -z "${DEPLOYMENT_PUBLIC_SCHEME}" ]; then DEPLOYMENT_PUBLIC_SCHEME="https"; fi
             DEPLOYMENT_TLS_CERT_PATH="${{ vars.DEPLOYMENT_TLS_CERT_PATH }}"
             DEPLOYMENT_TLS_KEY_PATH="${{ vars.DEPLOYMENT_TLS_KEY_PATH }}"
             NGINX_CONTAINER_NAME="${{ vars.NGINX_CONTAINER_NAME }}"
@@ -148,6 +149,7 @@ jobs:
             export AI_DEPLOY_MAX_ATTEMPTS
             export AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS
             export DOMAIN
+            export DEPLOYMENT_HOST_DOMAIN
             export COOKIE_SAMESITE
             export COOKIE_SECURE
             export CPU_PRICE_PER_VCPU_MIN
@@ -161,15 +163,18 @@ jobs:
             export APP_IMAGE="${IMAGE_REF}"
 
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
+            docker stop "${NGINX_CONTAINER_NAME}" >/dev/null 2>&1 || true
+            docker rm -f "${NGINX_CONTAINER_NAME}" >/dev/null 2>&1 || true
+            docker system prune -f || true
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" pull api
-            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d api nginx
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d --force-recreate api nginx
 
             sed "s/\${DOMAIN}/${DOMAIN}/g" "${APP_DIR}/infra/nginx/nginx.https.template.conf" > "${NGINX_RUNTIME_CONF}"
             # Hardening for stale templates: normalize http2 syntax and enforce server_name hash sizing.
             sed -i 's/listen 443 ssl http2;/listen 443 ssl;\n    http2 on;/g' "${NGINX_RUNTIME_CONF}"
             grep -q "^server_names_hash_bucket_size" "${NGINX_RUNTIME_CONF}" || sed -i '1iserver_names_hash_bucket_size 128;' "${NGINX_RUNTIME_CONF}"
             grep -q "^server_names_hash_max_size" "${NGINX_RUNTIME_CONF}" || sed -i '2iserver_names_hash_max_size 8192;' "${NGINX_RUNTIME_CONF}"
-            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d nginx
+            docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d --force-recreate nginx
             sed -i '1s/^\xEF\xBB\xBF//' "${NGINX_RUNTIME_CONF}"
             echo "===== nginx runtime conf preview ====="
             sed -n '1,60p' "${NGINX_RUNTIME_CONF}"

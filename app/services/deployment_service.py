@@ -18,6 +18,7 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, HTTPException, status
+from sqlmodel import Session, select
 
 try:
     import docker
@@ -25,6 +26,9 @@ except Exception as exc:  # noqa: BLE001
     raise RuntimeError("Docker SDK is not installed") from exc
 
 from app.core.config import get_settings
+from app.db.session import engine
+from app.models import Deployment as DeploymentModel
+from app.models import DeploymentAttempt as DeploymentAttemptModel
 from app.schemas.deployment import (
     DeploymentAttemptRead,
     DeploymentCreateRequest,
@@ -226,6 +230,7 @@ class DeploymentService:
         )
         with self._lock:
             self._deployments[deployment_id] = record
+        self._persist_deployment_state(deployment_id)
 
         background_tasks.add_task(self._run_pipeline, deployment_id)
         logger.info(
@@ -242,65 +247,37 @@ class DeploymentService:
             deployment_id,
             tenant_id,
         )
-        with self._lock:
-            record = self._deployments.get(deployment_id)
-            if not record or record.tenant_id != tenant_id:
-                logger.warning(
-                    "[AI_SYS] Deployment status lookup failed deployment_id=%s tenant_id=%s",
-                    deployment_id,
-                    tenant_id,
-                )
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
+        record = self._get_or_load_record_for_tenant(deployment_id=deployment_id, tenant_id=tenant_id)
+        if not record:
+            logger.warning(
+                "[AI_SYS] Deployment status lookup failed deployment_id=%s tenant_id=%s",
+                deployment_id,
+                tenant_id,
+            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
+        return self._record_to_status_response(record)
 
-            attempts = [
-                DeploymentAttemptRead(
-                    attempt=item.attempt,
-                    status=item.status,
-                    technology=item.technology,
-                    dockerfile=item.dockerfile,
-                    build_error=item.build_error,
-                    prompt_context_chars=item.prompt_context_chars,
-                    started_at=item.started_at,
-                    finished_at=item.finished_at,
-                )
-                for item in record.attempts
-            ]
-
-            payload = {
-                "deployment_id": record.deployment_id,
-                "tenant_id": record.tenant_id,
-                "github_url": record.github_url,
-                "status": record.status,
-                "docker_image": record.docker_image,
-                "container_id": record.container_id,
-                "container_name": record.container_name,
-                "container_port": record.container_port,
-                "public_url": record.public_url,
-                "error_message": record.error_message,
-                "current_attempt": record.current_attempt,
-                "max_attempts": record.max_attempts,
-                "attempts": attempts,
-                "created_at": record.created_at,
-                "updated_at": record.updated_at,
-            }
-
-        return DeploymentStatusResponse(
-            deployment_id=payload["deployment_id"],
-            tenant_id=payload["tenant_id"],
-            github_url=payload["github_url"],
-            status=payload["status"],
-            docker_image=payload["docker_image"],
-            container_id=payload["container_id"],
-            container_name=payload["container_name"],
-            container_port=payload["container_port"],
-            public_url=payload["public_url"],
-            error_message=payload["error_message"],
-            current_attempt=payload["current_attempt"],
-            max_attempts=payload["max_attempts"],
-            attempts=payload["attempts"],
-            created_at=payload["created_at"],
-            updated_at=payload["updated_at"],
+    def list_deployments(
+        self,
+        tenant_id: int,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[DeploymentStatusResponse]:
+        records = self._list_deployments_from_db(
+            tenant_id=tenant_id,
+            limit=limit,
+            offset=offset,
         )
+        if not records:
+            with self._lock:
+                memory_records = [
+                    self._clone_deployment_record(item)
+                    for item in self._deployments.values()
+                    if item.tenant_id == tenant_id
+                ]
+            memory_records.sort(key=lambda item: item.created_at, reverse=True)
+            records = memory_records[offset : offset + limit]
+        return [self._record_to_status_response(item) for item in records]
 
     async def delete_deployment(self, deployment_id: str, tenant_id: int) -> None:
         logger.info(
@@ -308,20 +285,27 @@ class DeploymentService:
             deployment_id,
             tenant_id,
         )
-        with self._lock:
-            record = self._deployments.get(deployment_id)
-            if not record or record.tenant_id != tenant_id:
-                logger.warning(
-                    "[AI_SYS] Deployment delete failed (not found) deployment_id=%s tenant_id=%s",
-                    deployment_id,
-                    tenant_id,
-                )
-                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
-            record.cancel_requested = True
-            record.status = "deleting"
-            record.updated_at = datetime.utcnow()
+        record = self._get_or_load_record_for_tenant(deployment_id=deployment_id, tenant_id=tenant_id)
+        if not record:
+            logger.warning(
+                "[AI_SYS] Deployment delete failed (not found) deployment_id=%s tenant_id=%s",
+                deployment_id,
+                tenant_id,
+            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deployment not found")
 
-        await asyncio.to_thread(self._cleanup_resources, record)
+        with self._lock:
+            current = self._deployments.get(deployment_id)
+            if not current:
+                self._deployments[deployment_id] = record
+                current = record
+            current.cancel_requested = True
+            current.status = "deleting"
+            current.updated_at = datetime.utcnow()
+            cleanup_record = self._clone_deployment_record(current)
+        self._persist_deployment_state(deployment_id)
+
+        await asyncio.to_thread(self._cleanup_resources, cleanup_record)
         with self._lock:
             current = self._deployments.get(deployment_id)
             if not current:
@@ -338,6 +322,7 @@ class DeploymentService:
             current.public_url = None
             current.error_message = None
             current.updated_at = datetime.utcnow()
+        self._persist_deployment_state(deployment_id)
         logger.info(
             "[AI_SYS] Deployment delete completed deployment_id=%s tenant_id=%s",
             deployment_id,
@@ -567,18 +552,18 @@ class DeploymentService:
             with self._lock:
                 cancelled_record = self._deployments.get(deployment_id)
             if cancelled_record:
-                await asyncio.to_thread(self._cleanup_resources, cancelled_record)
-                with self._lock:
-                    current = self._deployments.get(deployment_id)
-                    if current:
-                        current.status = "deleted"
-                        current.docker_image = None
-                        current.container_id = None
-                        current.container_name = None
-                        current.container_port = None
-                        current.public_url = None
-                        current.error_message = None
-                        current.updated_at = datetime.utcnow()
+                cleanup_record = self._clone_deployment_record(cancelled_record)
+                await asyncio.to_thread(self._cleanup_resources, cleanup_record)
+                self._update_deployment(
+                    deployment_id,
+                    status="deleted",
+                    docker_image=None,
+                    container_id=None,
+                    container_name=None,
+                    container_port=None,
+                    public_url=None,
+                    error_message=None,
+                )
                 logger.info(
                     "[AI_SYS] Cancelled deployment resources cleaned deployment_id=%s",
                     deployment_id,
@@ -598,6 +583,254 @@ class DeploymentService:
                 exc,
             )
             self._update_deployment(deployment_id, status="failed", error_message=str(exc))
+
+    def _record_to_status_response(self, record: DeploymentRecord) -> DeploymentStatusResponse:
+        attempts = [
+            DeploymentAttemptRead(
+                attempt=item.attempt,
+                status=item.status,
+                technology=item.technology,
+                dockerfile=item.dockerfile,
+                build_error=item.build_error,
+                prompt_context_chars=item.prompt_context_chars,
+                started_at=item.started_at,
+                finished_at=item.finished_at,
+            )
+            for item in record.attempts
+        ]
+        return DeploymentStatusResponse(
+            deployment_id=record.deployment_id,
+            tenant_id=record.tenant_id,
+            github_url=record.github_url,
+            status=record.status,
+            docker_image=record.docker_image,
+            container_id=record.container_id,
+            container_name=record.container_name,
+            container_port=record.container_port,
+            public_url=record.public_url,
+            error_message=record.error_message,
+            current_attempt=record.current_attempt,
+            max_attempts=record.max_attempts,
+            attempts=attempts,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+        )
+
+    def _clone_attempt_record(self, attempt: DeploymentAttemptRecord) -> DeploymentAttemptRecord:
+        return DeploymentAttemptRecord(
+            attempt=attempt.attempt,
+            status=attempt.status,
+            technology=attempt.technology,
+            dockerfile=attempt.dockerfile,
+            build_error=attempt.build_error,
+            prompt_context_chars=attempt.prompt_context_chars,
+            started_at=attempt.started_at,
+            finished_at=attempt.finished_at,
+        )
+
+    def _clone_deployment_record(self, record: DeploymentRecord) -> DeploymentRecord:
+        return DeploymentRecord(
+            deployment_id=record.deployment_id,
+            tenant_id=record.tenant_id,
+            github_url=record.github_url,
+            status=record.status,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+            docker_image=record.docker_image,
+            container_id=record.container_id,
+            container_name=record.container_name,
+            container_port=record.container_port,
+            public_url=record.public_url,
+            error_message=record.error_message,
+            current_attempt=record.current_attempt,
+            max_attempts=record.max_attempts,
+            attempts=[self._clone_attempt_record(item) for item in record.attempts],
+            cancel_requested=record.cancel_requested,
+        )
+
+    def _build_record_from_db(
+        self,
+        db_record: DeploymentModel,
+        db_attempts: list[DeploymentAttemptModel],
+    ) -> DeploymentRecord:
+        attempts = [
+            DeploymentAttemptRecord(
+                attempt=item.attempt,
+                status=item.status,
+                technology=item.technology,
+                dockerfile=item.dockerfile,
+                build_error=item.build_error,
+                prompt_context_chars=item.prompt_context_chars,
+                started_at=item.started_at,
+                finished_at=item.finished_at,
+            )
+            for item in sorted(db_attempts, key=lambda value: value.attempt)
+        ]
+        return DeploymentRecord(
+            deployment_id=db_record.deployment_id,
+            tenant_id=db_record.tenant_id,
+            github_url=db_record.github_url,
+            status=db_record.status,
+            created_at=db_record.created_at,
+            updated_at=db_record.updated_at,
+            docker_image=db_record.docker_image,
+            container_id=db_record.container_id,
+            container_name=db_record.container_name,
+            container_port=db_record.container_port,
+            public_url=db_record.public_url,
+            error_message=db_record.error_message,
+            current_attempt=db_record.current_attempt,
+            max_attempts=db_record.max_attempts,
+            attempts=attempts,
+            cancel_requested=db_record.cancel_requested,
+        )
+
+    def _load_deployment_from_db(
+        self,
+        deployment_id: str,
+        tenant_id: int,
+    ) -> DeploymentRecord | None:
+        with Session(engine) as session:
+            db_record = session.exec(
+                select(DeploymentModel).where(
+                    DeploymentModel.deployment_id == deployment_id,
+                    DeploymentModel.tenant_id == tenant_id,
+                )
+            ).first()
+            if not db_record:
+                return None
+            db_attempts = session.exec(
+                select(DeploymentAttemptModel)
+                .where(DeploymentAttemptModel.deployment_record_id == db_record.id)
+                .order_by(DeploymentAttemptModel.attempt.asc())
+            ).all()
+            return self._build_record_from_db(db_record, db_attempts)
+
+    def _list_deployments_from_db(
+        self,
+        tenant_id: int,
+        limit: int,
+        offset: int,
+    ) -> list[DeploymentRecord]:
+        with Session(engine) as session:
+            db_records = session.exec(
+                select(DeploymentModel)
+                .where(DeploymentModel.tenant_id == tenant_id)
+                .order_by(DeploymentModel.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            ).all()
+            records: list[DeploymentRecord] = []
+            for db_record in db_records:
+                db_attempts = session.exec(
+                    select(DeploymentAttemptModel)
+                    .where(DeploymentAttemptModel.deployment_record_id == db_record.id)
+                    .order_by(DeploymentAttemptModel.attempt.asc())
+                ).all()
+                records.append(self._build_record_from_db(db_record, db_attempts))
+            return records
+
+    def _get_or_load_record_for_tenant(self, deployment_id: str, tenant_id: int) -> DeploymentRecord | None:
+        with self._lock:
+            in_memory = self._deployments.get(deployment_id)
+            if in_memory and in_memory.tenant_id == tenant_id:
+                return self._clone_deployment_record(in_memory)
+            if in_memory and in_memory.tenant_id != tenant_id:
+                return None
+
+        from_db = self._load_deployment_from_db(deployment_id=deployment_id, tenant_id=tenant_id)
+        if not from_db:
+            return None
+
+        with self._lock:
+            existing = self._deployments.get(deployment_id)
+            if not existing:
+                self._deployments[deployment_id] = from_db
+                return self._clone_deployment_record(from_db)
+            if existing.tenant_id != tenant_id:
+                return None
+            return self._clone_deployment_record(existing)
+
+    def _persist_deployment_state(self, deployment_id: str) -> None:
+        with self._lock:
+            record = self._deployments.get(deployment_id)
+            if not record:
+                return
+            snapshot = self._clone_deployment_record(record)
+        self._save_record_to_db(snapshot)
+
+    def _save_record_to_db(self, record: DeploymentRecord) -> None:
+        try:
+            with Session(engine) as session:
+                db_record = session.exec(
+                    select(DeploymentModel).where(DeploymentModel.deployment_id == record.deployment_id)
+                ).first()
+                if not db_record:
+                    db_record = DeploymentModel(
+                        deployment_id=record.deployment_id,
+                        tenant_id=record.tenant_id,
+                        github_url=record.github_url,
+                        status=record.status,
+                        created_at=record.created_at,
+                        updated_at=record.updated_at,
+                    )
+
+                db_record.tenant_id = record.tenant_id
+                db_record.github_url = record.github_url
+                db_record.status = record.status
+                db_record.docker_image = record.docker_image
+                db_record.container_id = record.container_id
+                db_record.container_name = record.container_name
+                db_record.container_port = record.container_port
+                db_record.public_url = record.public_url
+                db_record.error_message = record.error_message
+                db_record.current_attempt = record.current_attempt
+                db_record.max_attempts = record.max_attempts
+                db_record.cancel_requested = record.cancel_requested
+                db_record.created_at = record.created_at
+                db_record.updated_at = record.updated_at
+                session.add(db_record)
+                session.commit()
+                session.refresh(db_record)
+
+                existing_attempts = session.exec(
+                    select(DeploymentAttemptModel).where(
+                        DeploymentAttemptModel.deployment_record_id == db_record.id
+                    )
+                ).all()
+                existing_map = {item.attempt: item for item in existing_attempts}
+                current_attempt_numbers = {item.attempt for item in record.attempts}
+
+                for attempt in record.attempts:
+                    db_attempt = existing_map.get(attempt.attempt)
+                    if not db_attempt:
+                        db_attempt = DeploymentAttemptModel(
+                            deployment_record_id=db_record.id,
+                            attempt=attempt.attempt,
+                            status=attempt.status,
+                            started_at=attempt.started_at,
+                        )
+
+                    db_attempt.status = attempt.status
+                    db_attempt.technology = attempt.technology
+                    db_attempt.dockerfile = attempt.dockerfile
+                    db_attempt.build_error = attempt.build_error
+                    db_attempt.prompt_context_chars = attempt.prompt_context_chars
+                    db_attempt.started_at = attempt.started_at
+                    db_attempt.finished_at = attempt.finished_at
+                    session.add(db_attempt)
+
+                for attempt_number, db_attempt in existing_map.items():
+                    if attempt_number not in current_attempt_numbers:
+                        session.delete(db_attempt)
+
+                session.commit()
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "[AI_SYS] Failed to persist deployment state deployment_id=%s error=%s",
+                record.deployment_id,
+                exc,
+            )
 
     def _update_deployment(self, deployment_id: str, **changes: object) -> None:
         with self._lock:
@@ -627,6 +860,7 @@ class DeploymentService:
                 deployment_id,
                 list(changes.keys()),
             )
+        self._persist_deployment_state(deployment_id)
 
     def _start_attempt(self, deployment_id: str, attempt_number: int, technology: str | None) -> None:
         with self._lock:
@@ -651,6 +885,7 @@ class DeploymentService:
             record.current_attempt = attempt_number
             record.attempts.append(attempt)
             record.updated_at = datetime.utcnow()
+        self._persist_deployment_state(deployment_id)
 
     def _update_attempt(self, deployment_id: str, attempt_number: int, **changes: object) -> None:
         with self._lock:
@@ -680,6 +915,7 @@ class DeploymentService:
             for key, value in changes.items():
                 setattr(target, key, value)
             record.updated_at = datetime.utcnow()
+        self._persist_deployment_state(deployment_id)
 
     def _get_max_attempts(self, deployment_id: str) -> int:
         with self._lock:
@@ -1398,16 +1634,20 @@ class DeploymentService:
                 self.settings.deployment_network_name,
             )
 
+    def _deployment_host_domain(self) -> str:
+        return self.settings.deployment_host_domain.strip() or self.settings.domain.strip()
+
     def _configure_public_access(self, deployment_id: str, container_name: str, container_port: int) -> str | None:
-        if not self.settings.domain:
+        deployment_domain = self._deployment_host_domain()
+        if not deployment_domain:
             logger.warning(
-                "[AI_SYS] Public access skipped because DOMAIN is not configured deployment_id=%s",
+                "[AI_SYS] Public access skipped because DEPLOYMENT_HOST_DOMAIN/DOMAIN is not configured deployment_id=%s",
                 deployment_id,
             )
             return None
 
         scheme = self.settings.deployment_public_scheme.strip().lower() or "http"
-        public_host = f"{deployment_id}.{self.settings.domain}"
+        public_host = f"{deployment_id}.{deployment_domain}"
         tls_cert_path, tls_key_path = self._resolve_deployment_tls_paths(scheme)
         server_block = self._render_nginx_server_block(
             server_name=public_host,
@@ -1543,9 +1783,9 @@ class DeploymentService:
             logger.info("[AI_SYS] Cleanup finished deployment_id=%s", record.deployment_id)
 
     def _remove_public_access(self, deployment_id: str) -> None:
-        if not self.settings.domain:
+        if not self._deployment_host_domain():
             logger.info(
-                "[AI_SYS] Public access removal skipped because DOMAIN is not configured deployment_id=%s",
+                "[AI_SYS] Public access removal skipped because DEPLOYMENT_HOST_DOMAIN/DOMAIN is not configured deployment_id=%s",
                 deployment_id,
             )
             return
@@ -1612,9 +1852,9 @@ class DeploymentService:
         if configured_cert or configured_key:
             raise RuntimeError("Both DEPLOYMENT_TLS_CERT_PATH and DEPLOYMENT_TLS_KEY_PATH must be set for HTTPS")
 
-        domain = self.settings.domain.strip()
+        domain = self._deployment_host_domain()
         if not domain:
-            raise RuntimeError("DOMAIN is required for HTTPS hosted deployments")
+            raise RuntimeError("DEPLOYMENT_HOST_DOMAIN or DOMAIN is required for HTTPS hosted deployments")
 
         return (
             f"/etc/letsencrypt/live/{domain}/fullchain.pem",

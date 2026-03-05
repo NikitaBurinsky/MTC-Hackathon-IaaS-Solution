@@ -35,6 +35,7 @@ Catalog (read-only, seeded by `init_db`):
 Tenant-scoped resources:
 - `GET/POST/DELETE /instances*`
 - `POST/GET/DELETE /deployments*`
+- `GET /deployments` (history list, newest first)
 - `POST /tasks/execute`, `GET /tasks`, `GET /tasks/{id}`
 - `GET/POST/PUT/DELETE /scripts*`
 - `GET/POST/PUT/DELETE /networks*`
@@ -45,17 +46,20 @@ AI deployment entrypoint rules live in `app/config/entrypoint_rules.json`
 `GET /deployments/{id}` includes retry metadata:
 - `current_attempt`, `max_attempts`
 - `attempts[]` with per-attempt Dockerfile, build error, detected technology, and timing.
+- deployment records are persisted in DB (`deployments`, `deployment_attempts`) and survive API restarts.
 
 ## Hosted Deployments
 
 Hosted routing mode: `subdomain`.
 
 Deployed apps are exposed via Nginx at:
-`http://<deployment_id>.<DOMAIN>/`.
+`https://<deployment_id>.<DEPLOYMENT_HOST_DOMAIN or DOMAIN>/`.
 Deleting a deployment removes the container, image, and Nginx route.
 
 Infrastructure requirement:
 - wildcard DNS record `*.DOMAIN` must point to the Nginx host (A/CNAME).
+- optional separate hosted zone: set `DEPLOYMENT_HOST_DOMAIN` (e.g. `hosters.formatis.online`)
+  and configure wildcard DNS `*.DEPLOYMENT_HOST_DOMAIN` to the same Nginx host.
 
 HTTPS support for hosted subdomains:
 - set `DEPLOYMENT_PUBLIC_SCHEME=https`
@@ -90,8 +94,9 @@ Optional GitHub Variables:
 - `POSTGRES_DB` (default: `iaas`)
 - `POSTGRES_IMAGE` (default: `postgres:16-alpine`)
 - `POSTGRES_CONTAINER_NAME` (default: `iaas-postgres`)
-- `NGINX_RUNTIME_CONF` (default: `/tmp/iaas-nginx.conf`)
-- `DEPLOYMENT_PUBLIC_SCHEME` (default: `http`)
+- `NGINX_RUNTIME_CONF` (default: `/tmp/iaas-nginx.conf/nginx.conf`)
+- `DEPLOYMENT_PUBLIC_SCHEME` (default: `https`)
+- `DEPLOYMENT_HOST_DOMAIN` (optional; fallback to `DOMAIN`)
 - `DEPLOYMENT_TLS_CERT_PATH` (optional)
 - `DEPLOYMENT_TLS_KEY_PATH` (optional)
 - `DEPLOYMENT_NETWORK_NAME` (default: `iaas-backbone`)

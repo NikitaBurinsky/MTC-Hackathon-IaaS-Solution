@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Column, DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import Boolean, Column, DateTime, Float, Index, Integer, String, Text, func
 from sqlalchemy import Enum as SQLEnum
 from sqlmodel import Field, SQLModel
 
@@ -263,3 +263,77 @@ class Network(SQLModel, table=True):
 
 
 Index("ix_networks_tenant_name", Network.tenant_id, Network.name, unique=True)
+
+
+class Deployment(SQLModel, table=True):
+    __tablename__ = "deployments"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    deployment_id: str = Field(
+        sa_column=Column(String(64), unique=True, nullable=False, index=True)
+    )
+    tenant_id: int = Field(foreign_key="tenants.id", index=True, nullable=False)
+    github_url: str = Field(sa_column=Column(String(512), nullable=False))
+    status: str = Field(sa_column=Column(String(64), nullable=False))
+    docker_image: Optional[str] = Field(
+        default=None, sa_column=Column(String(255), nullable=True)
+    )
+    container_id: Optional[str] = Field(
+        default=None, sa_column=Column(String(128), nullable=True, index=True)
+    )
+    container_name: Optional[str] = Field(
+        default=None, sa_column=Column(String(128), nullable=True, index=True)
+    )
+    container_port: Optional[int] = Field(
+        default=None, sa_column=Column(Integer, nullable=True)
+    )
+    public_url: Optional[str] = Field(
+        default=None, sa_column=Column(String(512), nullable=True)
+    )
+    error_message: Optional[str] = Field(
+        default=None, sa_column=Column(Text, nullable=True)
+    )
+    current_attempt: int = Field(default=0, sa_column=Column(Integer, nullable=False))
+    max_attempts: int = Field(default=3, sa_column=Column(Integer, nullable=False))
+    cancel_requested: bool = Field(
+        default=False, sa_column=Column(Boolean, nullable=False)
+    )
+    created_at: datetime = Field(
+        default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
+    )
+    updated_at: datetime = Field(
+        default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
+    )
+
+
+class DeploymentAttempt(SQLModel, table=True):
+    __tablename__ = "deployment_attempts"
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    deployment_record_id: int = Field(
+        foreign_key="deployments.id", index=True, nullable=False
+    )
+    attempt: int = Field(sa_column=Column(Integer, nullable=False))
+    status: str = Field(sa_column=Column(String(64), nullable=False))
+    technology: Optional[str] = Field(
+        default=None, sa_column=Column(String(64), nullable=True)
+    )
+    dockerfile: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    build_error: Optional[str] = Field(default=None, sa_column=Column(Text, nullable=True))
+    prompt_context_chars: int = Field(
+        default=0, sa_column=Column(Integer, nullable=False)
+    )
+    started_at: datetime = Field(
+        default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
+    )
+    finished_at: Optional[datetime] = Field(
+        default=None, sa_column=Column(DateTime, nullable=True)
+    )
+
+
+Index(
+    "ix_deployment_attempts_record_attempt",
+    DeploymentAttempt.deployment_record_id,
+    DeploymentAttempt.attempt,
+    unique=True,
+)
