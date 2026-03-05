@@ -131,6 +131,7 @@ jobs:
 
             NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
             if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf/nginx.conf"; fi
+            mkdir -p "$(dirname "${NGINX_RUNTIME_CONF}")"
             if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="lax"; fi
             if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
             if [ -z "${CPU_PRICE_PER_VCPU_MIN}" ]; then CPU_PRICE_PER_VCPU_MIN="1"; fi
@@ -164,8 +165,14 @@ jobs:
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d api nginx
 
             sed "s/\${DOMAIN}/${DOMAIN}/g" "${APP_DIR}/infra/nginx/nginx.https.template.conf" > "${NGINX_RUNTIME_CONF}"
+            # Hardening for stale templates: normalize http2 syntax and enforce server_name hash sizing.
+            sed -i 's/listen 443 ssl http2;/listen 443 ssl;\n    http2 on;/g' "${NGINX_RUNTIME_CONF}"
+            grep -q "^server_names_hash_bucket_size" "${NGINX_RUNTIME_CONF}" || sed -i '1iserver_names_hash_bucket_size 128;' "${NGINX_RUNTIME_CONF}"
+            grep -q "^server_names_hash_max_size" "${NGINX_RUNTIME_CONF}" || sed -i '2iserver_names_hash_max_size 8192;' "${NGINX_RUNTIME_CONF}"
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d nginx
             sed -i '1s/^\xEF\xBB\xBF//' "${NGINX_RUNTIME_CONF}"
+            echo "===== nginx runtime conf preview ====="
+            sed -n '1,60p' "${NGINX_RUNTIME_CONF}"
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -t
             docker compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload
 
