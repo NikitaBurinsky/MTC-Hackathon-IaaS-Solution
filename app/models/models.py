@@ -114,6 +114,11 @@ class Instance(SQLModel, table=True):
     ip_address: Optional[str] = Field(
         default=None, sa_column=Column(String(64), nullable=True)
     )
+    ssh_port: int = Field(sa_column=Column(Integer, nullable=False))
+    ssh_username: str = Field(sa_column=Column(String(120), nullable=False))
+    postgres_username: Optional[str] = Field(
+        default=None, sa_column=Column(String(120), nullable=True)
+    )
     created_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)
     )

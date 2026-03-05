@@ -70,6 +70,38 @@ def seed_defaults(session: Session) -> None:
         secondary.is_active = True
     session.add(secondary)
 
+    postgres = session.exec(
+        select(Image).where(Image.code == settings.postgres_image_code)
+    ).first()
+    if not postgres:
+        postgres = Image(
+            code=settings.postgres_image_code,
+            docker_image_ref=settings.postgres_image_ref,
+            display_name=settings.postgres_image_name,
+            is_active=True,
+        )
+    else:
+        postgres.docker_image_ref = settings.postgres_image_ref
+        postgres.display_name = settings.postgres_image_name
+        postgres.is_active = True
+    session.add(postgres)
+
+    docker = session.exec(
+        select(Image).where(Image.code == settings.docker_image_code)
+    ).first()
+    if not docker:
+        docker = Image(
+            code=settings.docker_image_code,
+            docker_image_ref=settings.docker_image_ref,
+            display_name=settings.docker_image_name,
+            is_active=True,
+        )
+    else:
+        docker.docker_image_ref = settings.docker_image_ref
+        docker.display_name = settings.docker_image_name
+        docker.is_active = True
+    session.add(docker)
+
     session.commit()
 
 
