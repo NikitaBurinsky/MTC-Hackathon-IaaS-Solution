@@ -5,9 +5,11 @@ from app.core.config import get_settings
 from app.core.deps import get_current_tenant_id, get_current_user
 from app.db.session import get_session
 from app.models import Flavor, Image, Instance, Plan, Tenant, User
-from app.schemas import DashUserResponse, InstanceRead
+from app.schemas import DashUserResponse, DeploymentDashRead, InstanceRead
+from app.services import DeploymentService
 
 router = APIRouter(prefix="/dash", tags=["dash"])
+deployment_service = DeploymentService()
 
 
 @router.get("/user", response_model=DashUserResponse)
@@ -59,6 +61,22 @@ def get_user_dashboard(
         )
         for instance in instances
     ]
+    deployments = [
+        DeploymentDashRead(
+            deployment_id=item.deployment_id,
+            github_url=item.github_url,
+            status=item.status,
+            public_url=item.public_url,
+            error_message=item.error_message,
+            created_at=item.created_at,
+            updated_at=item.updated_at,
+        )
+        for item in deployment_service.list_deployments(
+            tenant_id=tenant.id,
+            limit=50,
+            offset=0,
+        )
+    ]
 
     return DashUserResponse(
         user={"email": current_user.email, "name": current_user.name},
@@ -72,6 +90,7 @@ def get_user_dashboard(
                 "max_ram_mb": plan.max_ram_mb,
             },
             "instances": instance_reads,
+            "deployments": deployments,
         },
         images=images,
         flavors=flavors,

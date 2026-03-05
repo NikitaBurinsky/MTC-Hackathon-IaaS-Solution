@@ -2,6 +2,7 @@ from sqlmodel import SQLModel
 
 from app.schemas.catalog import FlavorRead, ImageRead
 from app.schemas.compute import InstanceRead
+from app.schemas.deployment import DeploymentDashRead
 from app.schemas.tenant import PlanSummary
 
 
@@ -15,6 +16,7 @@ class DashTenant(SQLModel):
     balance: float
     plan: PlanSummary
     instances: list[InstanceRead]
+    deployments: list[DeploymentDashRead]
 
 
 class DashUserResponse(SQLModel):

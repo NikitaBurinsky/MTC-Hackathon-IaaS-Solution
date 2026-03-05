@@ -27,6 +27,7 @@ from app.schemas.deployment import (
     DeploymentAttemptRead,
     DeploymentCreateRequest,
     DeploymentCreateResponse,
+    DeploymentDashRead,
     DeploymentStatusResponse,
 )
 from app.schemas.network import NetworkCreateRequest, NetworkRead, NetworkUpdateRequest
@@ -48,6 +49,7 @@ __all__ = [
     "AdminUserRead",
     "DeploymentCreateRequest",
     "DeploymentCreateResponse",
+    "DeploymentDashRead",
     "DeploymentStatusResponse",
     "DeploymentAttemptRead",
     "DashTenant",

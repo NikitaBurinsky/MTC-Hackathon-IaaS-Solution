@@ -49,3 +49,13 @@ class DeploymentStatusResponse(SQLModel):
     attempts: list[DeploymentAttemptRead]
     created_at: datetime
     updated_at: datetime
+
+
+class DeploymentDashRead(SQLModel):
+    deployment_id: str
+    github_url: str
+    status: str
+    public_url: str | None
+    error_message: str | None
+    created_at: datetime
+    updated_at: datetime
