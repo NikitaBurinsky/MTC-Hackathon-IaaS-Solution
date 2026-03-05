@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import socket
 import subprocess
 import tarfile
 import time
@@ -1591,14 +1592,20 @@ class DeploymentService:
                 name=container_name,
                 restart_policy={"Name": "unless-stopped"},
             )
+            resolved_container_port = self._resolve_runtime_container_port(
+                container=container,
+                container_name=container_name,
+                fallback_port=container_port,
+                deployment_id=deployment_id,
+            )
             logger.info(
                 "[AI_SYS] Container started deployment_id=%s container_id=%s container_name=%s container_port=%s",
                 deployment_id,
                 container.id,
                 container_name,
-                container_port,
+                resolved_container_port,
             )
-            return image_tag, container.id, container_name, container_port
+            return image_tag, container.id, container_name, resolved_container_port
         finally:
             client.close()
             logger.debug("[AI_SYS] Docker client closed after build/run deployment_id=%s", deployment_id)
@@ -1614,6 +1621,115 @@ class DeploymentService:
                     return int(match.group(1))
         logger.info("[AI_SYS] Container port fallback to default port=8000")
         return 8000
+
+    def _resolve_runtime_container_port(
+        self,
+        container: object,
+        container_name: str,
+        fallback_port: int,
+        deployment_id: str,
+    ) -> int:
+        candidates = self._collect_container_port_candidates(container, fallback_port)
+        logger.info(
+            "[AI_SYS] Runtime port candidates prepared deployment_id=%s container_name=%s candidates=%s",
+            deployment_id,
+            container_name,
+            candidates,
+        )
+
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            try:
+                container.reload()
+            except Exception:  # noqa: BLE001
+                logger.debug(
+                    "[AI_SYS] Container reload failed during port detection deployment_id=%s",
+                    deployment_id,
+                    exc_info=True,
+                )
+
+            container_status = str(getattr(container, "status", "")).lower()
+            if container_status in {"exited", "dead"}:
+                logs = self._read_container_logs(container)
+                raise RuntimeError(
+                    f"Container exited before app port became reachable. status={container_status}. logs={logs}"
+                )
+
+            for port in candidates:
+                if self._is_tcp_port_open(container_name, port, timeout_sec=0.8):
+                    logger.info(
+                        "[AI_SYS] Runtime port detected deployment_id=%s container_name=%s port=%s",
+                        deployment_id,
+                        container_name,
+                        port,
+                    )
+                    return port
+
+            time.sleep(1)
+
+        logs = self._read_container_logs(container)
+        raise RuntimeError(
+            "Container app port is not reachable on network "
+            f"(candidates={candidates}). Last logs: {logs}"
+        )
+
+    def _collect_container_port_candidates(self, container: object, fallback_port: int) -> list[int]:
+        candidates: list[int] = []
+
+        def _add_port(value: object) -> None:
+            try:
+                port = int(value)
+            except Exception:  # noqa: BLE001
+                return
+            if 1 <= port <= 65535 and port not in candidates:
+                candidates.append(port)
+
+        _add_port(fallback_port)
+
+        attrs = getattr(container, "attrs", {}) or {}
+        exposed_ports = attrs.get("Config", {}).get("ExposedPorts") or {}
+        if isinstance(exposed_ports, dict):
+            for key in sorted(exposed_ports):
+                match = re.match(r"^(\d+)/(tcp|udp)$", str(key))
+                if match:
+                    _add_port(match.group(1))
+
+        env_list = attrs.get("Config", {}).get("Env") or []
+        if isinstance(env_list, list):
+            for item in env_list:
+                if not isinstance(item, str) or "=" not in item:
+                    continue
+                env_key, env_value = item.split("=", 1)
+                key = env_key.strip().upper()
+                value = env_value.strip()
+                if key in {"PORT", "APP_PORT", "SERVER_PORT", "HTTP_PORT"}:
+                    _add_port(value)
+                if key in {"ASPNETCORE_URLS", "URLS"}:
+                    for match in re.finditer(r":(\d{2,5})", value):
+                        _add_port(match.group(1))
+
+        for common_port in (80, 443, 3000, 3001, 5000, 5001, 8000, 8080, 8081, 8888, 9000):
+            _add_port(common_port)
+
+        return candidates
+
+    def _is_tcp_port_open(self, host: str, port: int, timeout_sec: float) -> bool:
+        try:
+            with socket.create_connection((host, port), timeout=timeout_sec):
+                return True
+        except OSError:
+            return False
+
+    def _read_container_logs(self, container: object) -> str:
+        try:
+            raw_logs = container.logs(tail=60)
+            if isinstance(raw_logs, bytes):
+                text = raw_logs.decode("utf-8", errors="replace")
+            else:
+                text = str(raw_logs)
+            return text.strip()[-4000:]
+        except Exception:  # noqa: BLE001
+            return "logs unavailable"
 
     def _ensure_network(self, client: object) -> None:
         networks = getattr(client, "networks", None)
