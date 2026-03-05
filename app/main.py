@@ -1,17 +1,17 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import IntegrityError
 
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.db.init_db import init_db
+from app.schemas import ErrorResponse
 from app.services import ComputeService
 from app.services.billing_scheduler import BillingScheduler
-from app.schemas import ErrorResponse
 
 settings = get_settings()
 compute_service = ComputeService()
@@ -28,6 +28,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+
 
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
@@ -85,6 +86,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
     return JSONResponse(status_code=500, content=payload.model_dump())
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -94,11 +96,15 @@ app.add_middleware(
         "https://api.formatis.online",
         "http://localhost",
         "http://localhost:80",
+        "http://localhost:3000",
+        "http://localhost:3001",
         "http://localhost:8000",
+        "localhost",
         "http://127.0.0.1",
         "http://127.0.0.1:80",
+        "http://127.0.0.1j:3000",
+        "http://127.0.0.1:3001",
         "http://127.0.0.1:8000",
-        "localhost",
         "127.0.0.1",
     ],
     allow_credentials=True,
