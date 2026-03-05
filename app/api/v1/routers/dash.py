@@ -81,6 +81,7 @@ def get_user_dashboard(
     return DashUserResponse(
         user={"email": current_user.email, "name": current_user.name},
         tenant={
+            "id": tenant.id,
             "name": tenant.name,
             "balance": tenant.balance_credits,
             "plan": {

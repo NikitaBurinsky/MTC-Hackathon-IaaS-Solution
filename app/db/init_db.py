@@ -39,6 +39,20 @@ def seed_defaults(session: Session) -> None:
         flavor.price_per_minute = settings.default_flavor_rate
     session.add(flavor)
 
+    extra_flavors = [
+        {"name": "t2.small", "cpu": 1, "ram_mb": 2048, "price_per_minute": 2},
+        {"name": "t2.medium", "cpu": 2, "ram_mb": 2048, "price_per_minute": 3},
+    ]
+    for entry in extra_flavors:
+        existing = session.exec(select(Flavor).where(Flavor.name == entry["name"])).first()
+        if not existing:
+            existing = Flavor(**entry)
+        else:
+            existing.cpu = entry["cpu"]
+            existing.ram_mb = entry["ram_mb"]
+            existing.price_per_minute = entry["price_per_minute"]
+        session.add(existing)
+
     image = session.exec(
         select(Image).where(Image.code == settings.default_image_code)
     ).first()

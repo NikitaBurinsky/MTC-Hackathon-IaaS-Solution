@@ -12,6 +12,7 @@ class DashUser(SQLModel):
 
 
 class DashTenant(SQLModel):
+    id: int
     name: str
     balance: float
     plan: PlanSummary
