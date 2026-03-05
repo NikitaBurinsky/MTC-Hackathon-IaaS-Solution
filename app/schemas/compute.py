@@ -33,6 +33,10 @@ class InstanceRead(SQLModel):
     image_id: int
     status: InstanceStatus
     ip_address: str | None
+    ssh_host: str
+    ssh_port: int
+    ssh_username: str
+    postgres_username: str | None
     created_at: datetime
     updated_at: datetime
     deleted_at: datetime | None
@@ -42,10 +46,29 @@ class InstanceCreateAccepted(SQLModel):
     instance_id: int
     provisioning_operation_id: int
     status: InstanceStatus
+    ssh_host: str
+    ssh_port: int
+    ssh_username: str
+    ssh_password: str
+    postgres_username: str | None = None
+    postgres_password: str | None = None
 
 
 class InstanceActionRequest(SQLModel):
     action: ActionType
+
+
+class InstanceSshInfo(SQLModel):
+    ssh_host: str
+    ssh_port: int
+    ssh_username: str
+
+
+class InstanceSshResetResponse(SQLModel):
+    ssh_host: str
+    ssh_port: int
+    ssh_username: str
+    ssh_password: str
 
 
 class InstanceOperationRead(SQLModel):

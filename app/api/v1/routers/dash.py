@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
+from app.core.config import get_settings
 from app.core.deps import get_current_user
 from app.db.session import get_session
 from app.models import Flavor, Image, Instance, Plan, Tenant, User
-from app.schemas import DashUserResponse
+from app.schemas import DashUserResponse, InstanceRead
 
 router = APIRouter(prefix="/dash", tags=["dash"])
 
@@ -37,6 +38,26 @@ def get_user_dashboard(
         .where(Image.is_active == True)
         .order_by(Image.code.asc())
     ).all()  # noqa: E712
+    settings = get_settings()
+    instance_reads = [
+        InstanceRead(
+            id=instance.id,
+            tenant_id=instance.tenant_id,
+            name=instance.name,
+            flavor_id=instance.flavor_id,
+            image_id=instance.image_id,
+            status=instance.status,
+            ip_address=instance.ip_address,
+            ssh_host=settings.ssh_default_host,
+            ssh_port=instance.ssh_port,
+            ssh_username=instance.ssh_username,
+            postgres_username=instance.postgres_username,
+            created_at=instance.created_at,
+            updated_at=instance.updated_at,
+            deleted_at=instance.deleted_at,
+        )
+        for instance in instances
+    ]
 
     return DashUserResponse(
         user={"email": current_user.email, "name": current_user.name},
@@ -49,7 +70,7 @@ def get_user_dashboard(
                 "max_cpu": plan.max_cpu,
                 "max_ram_mb": plan.max_ram_mb,
             },
-            "instances": instances,
+            "instances": instance_reads,
         },
         images=images,
         flavors=flavors,

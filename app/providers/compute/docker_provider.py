@@ -26,17 +26,33 @@ class DockerProvider:
         return f"{safe_name}-{uuid4().hex[:8]}"
 
     def create_instance(
-        self, base_name: str, image_ref: str, cpu: int, ram_mb: int
+        self,
+        base_name: str,
+        image_ref: str,
+        cpu: int,
+        ram_mb: int,
+        command: str | None = None,
+        environment: dict[str, str] | None = None,
+        ports: dict[str, int] | None = None,
+        privileged: bool = False,
     ) -> str:
         self.client.images.pull(image_ref)
-        container = self.client.containers.create(
-            image=image_ref,
-            name=self._container_name(base_name),
-            command="sleep infinity",
-            detach=True,
-            mem_limit=f"{ram_mb}m",
-            nano_cpus=cpu * 1_000_000_000,
-        )
+        create_kwargs: dict[str, object] = {
+            "image": image_ref,
+            "name": self._container_name(base_name),
+            "detach": True,
+            "mem_limit": f"{ram_mb}m",
+            "nano_cpus": cpu * 1_000_000_000,
+        }
+        if command is not None:
+            create_kwargs["command"] = command
+        if environment:
+            create_kwargs["environment"] = environment
+        if ports:
+            create_kwargs["ports"] = ports
+        if privileged:
+            create_kwargs["privileged"] = True
+        container = self.client.containers.create(**create_kwargs)
         return container.id
 
     def start_instance(self, container_id: str) -> None:

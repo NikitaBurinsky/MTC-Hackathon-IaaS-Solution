@@ -13,6 +13,8 @@ from app.schemas.compute import (
     InstanceCreateRequest,
     InstanceOperationRead,
     InstanceRead,
+    InstanceSshInfo,
+    InstanceSshResetResponse,
 )
 from app.schemas.dash import DashTenant, DashUser, DashUserResponse
 from app.schemas.deployment import (
@@ -46,6 +48,8 @@ __all__ = [
     "InstanceCreateRequest",
     "InstanceOperationRead",
     "InstanceRead",
+    "InstanceSshInfo",
+    "InstanceSshResetResponse",
     "LoginRequest",
     "ErrorResponse",
     "MessageResponse",

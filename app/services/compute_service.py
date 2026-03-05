@@ -1,9 +1,11 @@
 import logging
+import secrets
 from datetime import datetime
 
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlmodel import Session, select
 
+from app.core.config import get_settings
 from app.db.session import engine
 from app.models import (
     ActionType,
@@ -23,9 +25,46 @@ from app.services.billing_service import BillingService
 
 logger = logging.getLogger(__name__)
 
+
 class ComputeService:
     def __init__(self) -> None:
         self.billing_service = BillingService()
+
+    def _allocate_ssh_port(self, session: Session) -> int:
+        settings = get_settings()
+        start = settings.ssh_port_range_start
+        end = settings.ssh_port_range_end
+        if start > end:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="SSH port range is invalid",
+            )
+        used_ports = set(
+            session.exec(
+                select(Instance.ssh_port).where(
+                    Instance.status != InstanceStatus.TERMINATED
+                ),
+            ).all()
+        )
+        for port in range(start, end + 1):
+            if port not in used_ports:
+                return port
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No SSH ports available",
+        )
+
+    def _build_ssh_credentials(self, tenant_id: int) -> tuple[str, str]:
+        settings = get_settings()
+        username = f"{settings.ssh_username_prefix}{tenant_id}"
+        password = secrets.token_urlsafe(16)
+        return username, password
+
+    def _build_postgres_credentials(self, tenant_id: int) -> tuple[str, str]:
+        settings = get_settings()
+        username = f"{settings.ssh_username_prefix}{tenant_id}"
+        password = secrets.token_urlsafe(16)
+        return username, password
 
     def ensure_docker_available(self) -> None:
         provider = get_docker_provider()
@@ -60,7 +99,7 @@ class ComputeService:
         name: str,
         flavor_id: int,
         image_id: int,
-    ) -> tuple[Instance, InstanceOperation]:
+    ) -> tuple[Instance, InstanceOperation, str, str | None]:
         flavor = session.get(Flavor, flavor_id)
         if not flavor:
             raise HTTPException(
@@ -85,12 +124,24 @@ class ComputeService:
             )
 
         self.billing_service.assert_can_allocate(session, tenant_id, flavor)
+        settings = get_settings()
+        ssh_port = self._allocate_ssh_port(session)
+        ssh_username, ssh_password = self._build_ssh_credentials(tenant_id)
+        postgres_username = None
+        postgres_password = None
+        if image.code == settings.postgres_image_code:
+            postgres_username, postgres_password = self._build_postgres_credentials(
+                tenant_id
+            )
 
         instance = Instance(
             tenant_id=tenant_id,
             name=name,
             flavor_id=flavor_id,
             image_id=image_id,
+            ssh_port=ssh_port,
+            ssh_username=ssh_username,
+            postgres_username=postgres_username,
             status=InstanceStatus.PROVISIONING,
             updated_at=datetime.utcnow(),
         )
@@ -109,11 +160,21 @@ class ComputeService:
         session.refresh(operation)
 
         background_tasks.add_task(
-            self._provision_instance_task, instance.id, operation.id
+            self._provision_instance_task,
+            instance.id,
+            operation.id,
+            ssh_password,
+            postgres_password,
         )
-        return instance, operation
+        return instance, operation, ssh_password, postgres_password
 
-    def _provision_instance_task(self, instance_id: int, operation_id: int) -> None:
+    def _provision_instance_task(
+        self,
+        instance_id: int,
+        operation_id: int,
+        ssh_password: str,
+        postgres_password: str | None,
+    ) -> None:
         provider = get_docker_provider()
         with Session(engine) as session:
             operation = session.get(InstanceOperation, operation_id)
@@ -132,11 +193,29 @@ class ComputeService:
                 if not flavor or not image:
                     raise RuntimeError("Flavor or image not found for provisioning")
 
+                settings = get_settings()
+                environment = {
+                    "SSH_USER": instance.ssh_username,
+                    "SSH_PASSWORD": ssh_password,
+                }
+                privileged = False
+                if image.code == settings.postgres_image_code:
+                    if not postgres_password or not instance.postgres_username:
+                        raise RuntimeError("Postgres credentials are missing")
+                    environment["POSTGRES_USER"] = instance.postgres_username
+                    environment["POSTGRES_PASSWORD"] = postgres_password
+                if image.code == settings.docker_image_code:
+                    environment["DOCKER_TLS_CERTDIR"] = ""
+                    privileged = True
+
                 container_id = provider.create_instance(
                     base_name=instance.name,
                     image_ref=image.docker_image_ref,
                     cpu=flavor.cpu,
                     ram_mb=flavor.ram_mb,
+                    environment=environment,
+                    ports={"22/tcp": instance.ssh_port},
+                    privileged=privileged,
                 )
                 provider.start_instance(container_id)
                 ip_address = provider.get_instance_ip(container_id)
@@ -195,6 +274,33 @@ class ComputeService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="Operation not found"
             )
         return operation
+
+    def reset_ssh_password(
+        self, session: Session, tenant_id: int, instance_id: int
+    ) -> tuple[Instance, str]:
+        instance = self.get_instance(session, tenant_id, instance_id)
+        if instance.status != InstanceStatus.RUNNING or not instance.docker_container_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Instance is not RUNNING",
+            )
+        password = secrets.token_urlsafe(16)
+        command = f"echo '{instance.ssh_username}:{password}' | chpasswd"
+        exit_code, _, stderr = get_docker_provider().exec_script(
+            instance.docker_container_id,
+            command,
+        )
+        if exit_code != 0:
+            logger.warning(
+                "Failed to reset SSH password instance_id=%s stderr=%s",
+                instance.id,
+                stderr,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to reset SSH password",
+            )
+        return instance, password
 
     def delete_instance(
         self, session: Session, tenant_id: int, instance_id: int

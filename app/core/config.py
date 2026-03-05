@@ -22,6 +22,10 @@ class Settings:
         )
         self.cookie_samesite = os.getenv("COOKIE_SAMESITE", "lax").strip().lower()
         self.cookie_secure = _env_bool("COOKIE_SECURE", "false")
+        self.ssh_port_range_start = int(os.getenv("SSH_PORT_RANGE_START", "22000"))
+        self.ssh_port_range_end = int(os.getenv("SSH_PORT_RANGE_END", "22999"))
+        self.ssh_username_prefix = os.getenv("SSH_USERNAME_PREFIX", "tenant")
+        self.ssh_default_host = os.getenv("SSH_DEFAULT_HOST", "api.formatis.online")
 
         self.default_plan_name = os.getenv("DEFAULT_PLAN_NAME", "starter")
         self.default_plan_cpu = int(os.getenv("DEFAULT_PLAN_CPU", "4"))
@@ -34,12 +38,30 @@ class Settings:
         self.default_flavor_rate = float(os.getenv("DEFAULT_FLAVOR_RATE", "1"))
 
         self.default_image_code = os.getenv("DEFAULT_IMAGE_CODE", "ubuntu-22.04")
-        self.default_image_ref = os.getenv("DEFAULT_IMAGE_REF", "ubuntu:22.04")
+        self.default_image_ref = os.getenv(
+            "DEFAULT_IMAGE_REF",
+            "ghcr.io/nikitaburinsky/mtc-hackathon-iaas-solution/iaas-ubuntu-ssh:latest",
+        )
         self.default_image_name = os.getenv("DEFAULT_IMAGE_NAME", "Ubuntu 22.04 LTS")
 
         self.secondary_image_code = os.getenv("SECONDARY_IMAGE_CODE", "alpine-3.20")
-        self.secondary_image_ref = os.getenv("SECONDARY_IMAGE_REF", "alpine:3.20")
+        self.secondary_image_ref = os.getenv(
+            "SECONDARY_IMAGE_REF",
+            "ghcr.io/nikitaburinsky/mtc-hackathon-iaas-solution/iaas-alpine-ssh:latest",
+        )
         self.secondary_image_name = os.getenv("SECONDARY_IMAGE_NAME", "Alpine 3.20")
+        self.postgres_image_code = os.getenv("POSTGRES_IMAGE_CODE", "postgres-16")
+        self.postgres_image_ref = os.getenv(
+            "POSTGRES_IMAGE_REF",
+            "ghcr.io/nikitaburinsky/mtc-hackathon-iaas-solution/iaas-postgres-ssh:latest",
+        )
+        self.postgres_image_name = os.getenv("POSTGRES_IMAGE_NAME", "Postgres 16")
+        self.docker_image_code = os.getenv("DOCKER_IMAGE_CODE", "docker-24")
+        self.docker_image_ref = os.getenv(
+            "DOCKER_IMAGE_REF",
+            "ghcr.io/nikitaburinsky/mtc-hackathon-iaas-solution/iaas-docker-ssh:latest",
+        )
+        self.docker_image_name = os.getenv("DOCKER_IMAGE_NAME", "Docker 24")
 
         self.cpu_price_per_vcpu_min = float(os.getenv("CPU_PRICE_PER_VCPU_MIN", "1"))
         self.ram_price_per_gb_min = float(os.getenv("RAM_PRICE_PER_GB_MIN", "5"))
