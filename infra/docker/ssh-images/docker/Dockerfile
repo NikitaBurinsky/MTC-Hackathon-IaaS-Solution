@@ -1,6 +1,7 @@
 FROM docker:24-dind
 
-RUN apk add --no-cache openssh-server
+RUN apk del openssh-client-default >/dev/null 2>&1 || true \
+    && apk add --no-cache openssh-server
 
 RUN mkdir -p /var/run/sshd \
     && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config \
