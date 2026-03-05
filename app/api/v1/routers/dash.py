@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session, select
 
 from app.core.config import get_settings
-from app.core.deps import get_current_user
+from app.core.deps import get_current_tenant_id, get_current_user
 from app.db.session import get_session
 from app.models import Flavor, Image, Instance, Plan, Tenant, User
 from app.schemas import DashUserResponse, InstanceRead
@@ -13,9 +13,10 @@ router = APIRouter(prefix="/dash", tags=["dash"])
 @router.get("/user", response_model=DashUserResponse)
 def get_user_dashboard(
     current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
     session: Session = Depends(get_session),
 ):
-    tenant = session.get(Tenant, current_user.tenant_id)
+    tenant = session.get(Tenant, tenant_id)
     if not tenant:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Tenant not found"

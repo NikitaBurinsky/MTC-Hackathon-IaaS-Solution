@@ -84,6 +84,10 @@ jobs:
             DOMAIN="${{ secrets.DOMAIN }}"
             DEPLOYMENT_HOST_DOMAIN="${{ vars.DEPLOYMENT_HOST_DOMAIN }}"
             JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            SUPERUSER_EMAIL="${{ secrets.SUPERUSER_EMAIL }}"
+            SUPERUSER_PASSWORD="${{ secrets.SUPERUSER_PASSWORD }}"
+            SUPERUSER_NAME="${{ vars.SUPERUSER_NAME }}"
+            if [ -z "${SUPERUSER_NAME}" ]; then SUPERUSER_NAME="SuperUser"; fi
             DATABASE_URL="${{ secrets.DATABASE_URL }}"
             COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
             COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
@@ -112,7 +116,7 @@ jobs:
             DEPLOYMENT_NETWORK_NAME="${{ vars.DEPLOYMENT_NETWORK_NAME }}"
             if [ -z "${DEPLOYMENT_NETWORK_NAME}" ]; then DEPLOYMENT_NETWORK_NAME="iaas-backbone"; fi
 
-            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${PROXYAPI_API_KEY}" ] || [ -z "${IMAGE_REF}" ]; then
+            if [ -z "${DOMAIN}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${PROXYAPI_API_KEY}" ] || [ -z "${IMAGE_REF}" ] || [ -z "${SUPERUSER_EMAIL}" ] || [ -z "${SUPERUSER_PASSWORD}" ]; then
               echo "Required secrets/outputs are missing"
               exit 1
             fi
@@ -142,6 +146,9 @@ jobs:
 
             export DATABASE_URL
             export JWT_SECRET
+            export SUPERUSER_EMAIL
+            export SUPERUSER_PASSWORD
+            export SUPERUSER_NAME
             export PROXYAPI_API_KEY
             export PROXYAPI_BASE_URL
             export PROXYAPI_MODEL

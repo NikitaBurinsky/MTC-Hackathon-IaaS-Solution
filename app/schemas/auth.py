@@ -1,6 +1,8 @@
 from pydantic import field_validator
 from sqlmodel import SQLModel
 
+from app.models import UserRole
+
 
 class RegisterRequest(SQLModel):
     name: str
@@ -45,6 +47,7 @@ class RegisterResponse(SQLModel):
     tenant_name: str
     user_id: int
     email: str
+    role: UserRole
     access_token: str
     token_type: str = "bearer"
 
@@ -71,4 +74,5 @@ class LoginRequest(SQLModel):
 
 class TokenResponse(SQLModel):
     access_token: str
+    role: UserRole
     token_type: str = "bearer"

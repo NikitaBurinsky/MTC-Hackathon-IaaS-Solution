@@ -1,8 +1,9 @@
 from sqlmodel import Session, SQLModel, select
 
 from app.core.config import get_settings
+from app.core.security import hash_password
 from app.db.session import engine
-from app.models import Flavor, Image, Plan
+from app.models import Flavor, Image, Plan, User, UserRole
 
 
 def seed_defaults(session: Session) -> None:
@@ -105,7 +106,54 @@ def seed_defaults(session: Session) -> None:
     session.commit()
 
 
+def _build_unique_username(session: Session, base_name: str, email: str) -> str:
+    candidate = base_name
+    suffix = 0
+    while True:
+        existing = session.exec(select(User).where(User.name == candidate)).first()
+        if not existing or existing.email == email:
+            return candidate
+        suffix += 1
+        candidate = f"{base_name}{suffix}"
+
+
+def seed_superuser(session: Session) -> None:
+    settings = get_settings()
+    if not settings.superuser_email or not settings.superuser_password:
+        raise RuntimeError("SUPERUSER_EMAIL and SUPERUSER_PASSWORD are required")
+
+    superuser_email = settings.superuser_email
+    superuser_name = _build_unique_username(
+        session=session,
+        base_name=settings.superuser_name,
+        email=superuser_email,
+    )
+    hashed_password = hash_password(settings.superuser_password)
+
+    existing = session.exec(select(User).where(User.email == superuser_email)).first()
+    if existing:
+        existing.name = superuser_name
+        existing.password_hash = hashed_password
+        existing.role = UserRole.SUPERUSER
+        existing.tenant_id = None
+        existing.is_active = True
+        session.add(existing)
+    else:
+        session.add(
+            User(
+                tenant_id=None,
+                name=superuser_name,
+                email=superuser_email,
+                password_hash=hashed_password,
+                role=UserRole.SUPERUSER,
+                is_active=True,
+            )
+        )
+    session.commit()
+
+
 def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     with Session(engine) as session:
         seed_defaults(session)
+        seed_superuser(session)

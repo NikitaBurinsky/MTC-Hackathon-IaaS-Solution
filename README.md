@@ -26,6 +26,7 @@ Base path: `/api/v1`.
 Auth:
 - `POST /auth/register` and `POST /auth/login` accept JSON and return a JWT.
 - The JWT is also set as the `access_token` cookie for browser clients.
+- Auth responses include `role` (`USER`, `ADMIN`, `SUPERUSER`).
 
 Catalog (read-only, seeded by `init_db`):
 - `GET /flavors`
@@ -39,6 +40,24 @@ Tenant-scoped resources:
 - `POST /tasks/execute`, `GET /tasks`, `GET /tasks/{id}`
 - `GET/POST/PUT/DELETE /scripts*`
 - `GET/POST/PUT/DELETE /networks*`
+
+Admin resources (`ADMIN` and `SUPERUSER`):
+- `GET /admin/overview`
+- `GET /admin/tenants`
+- `GET /admin/users`
+- `POST /admin/users/{id}/promote` (`SUPERUSER` only)
+- `POST /admin/users/{id}/demote` (`SUPERUSER` only)
+- `GET /admin/instances`
+- `POST /admin/instances/{id}/action`
+- `DELETE /admin/instances/{id}`
+- `GET /admin/deployments`
+- `GET /admin/billing/usage`
+
+RBAC:
+- `USER` can access only its tenant context.
+- `ADMIN` has provider-level access through `/admin/*`.
+- `SUPERUSER` is global (`tenant_id = NULL`) and can promote/demote admins.
+- tenant-only dependencies return `403` for users without tenant context (e.g. `SUPERUSER`).
 
 AI deployment entrypoint rules live in `app/config/entrypoint_rules.json`
 (`exact_filenames` and `regex_patterns`).
@@ -87,6 +106,7 @@ DB bootstrap recreates PostgreSQL from scratch each run (container + volume).
 Required GitHub Secrets:
 - `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`, `VPS_PORT`
 - `POSTGRES_PASSWORD`, `DATABASE_URL`, `JWT_SECRET`, `DOMAIN`, `PROXYAPI_API_KEY`
+- `SUPERUSER_EMAIL`, `SUPERUSER_PASSWORD`
 
 Optional GitHub Variables:
 - `VPS_APP_DIR` (default: `/opt/iaas-hackathon`)
@@ -106,3 +126,8 @@ Optional GitHub Variables:
 - `PROXYAPI_TIMEOUT_SEC` (default: `120`)
 - `AI_DEPLOY_MAX_ATTEMPTS` (default: `3`, hard cap `3`)
 - `AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS` (default: `120000`)
+- `SUPERUSER_NAME` (default: `SuperUser`)
+
+Runtime note:
+- startup is fail-fast if `SUPERUSER_EMAIL` or `SUPERUSER_PASSWORD` is missing.
+- this RBAC rollout assumes DB reset (`drop & recreate`) without Alembic migrations.

@@ -12,6 +12,7 @@ from app.models.enums import (
     ScriptSourceType,
     TaskRunStatus,
     TaskStatus,
+    UserRole,
 )
 
 
@@ -49,7 +50,9 @@ class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: Optional[int] = Field(default=None, primary_key=True)
-    tenant_id: int = Field(foreign_key="tenants.id", index=True, nullable=False)
+    tenant_id: Optional[int] = Field(
+        default=None, foreign_key="tenants.id", index=True, nullable=True
+    )
     name: str = Field(
         sa_column=Column(String(120), unique=True, nullable=False, index=True)
     )
@@ -57,6 +60,10 @@ class User(SQLModel, table=True):
         sa_column=Column(String(255), unique=True, nullable=False, index=True)
     )
     password_hash: str = Field(sa_column=Column(String(255), nullable=False))
+    role: UserRole = Field(
+        default=UserRole.USER,
+        sa_column=Column(SQLEnum(UserRole), nullable=False, index=True),
+    )
     is_active: bool = Field(default=True, nullable=False)
     created_at: datetime = Field(
         default_factory=datetime.utcnow, sa_column=Column(DateTime, nullable=False)

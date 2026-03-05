@@ -17,6 +17,9 @@ class Settings:
         )
         self.jwt_secret = os.getenv("JWT_SECRET", "change-me-in-production")
         self.jwt_algorithm = os.getenv("JWT_ALGORITHM", "HS256")
+        self.superuser_email = os.getenv("SUPERUSER_EMAIL", "").strip().lower()
+        self.superuser_password = os.getenv("SUPERUSER_PASSWORD", "").strip()
+        self.superuser_name = os.getenv("SUPERUSER_NAME", "SuperUser").strip() or "SuperUser"
         self.access_token_expire_minutes = int(
             os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120")
         )

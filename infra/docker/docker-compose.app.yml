@@ -7,6 +7,9 @@
       APP_NAME: ${APP_NAME:-Hackathon IaaS API}
       DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://postgres:postgres@postgres:5432/iaas}
       JWT_SECRET: ${JWT_SECRET:-change-me}
+      SUPERUSER_EMAIL: ${SUPERUSER_EMAIL:-}
+      SUPERUSER_PASSWORD: ${SUPERUSER_PASSWORD:-}
+      SUPERUSER_NAME: ${SUPERUSER_NAME:-SuperUser}
       DOMAIN: ${DOMAIN:-}
       DEPLOYMENT_HOST_DOMAIN: ${DEPLOYMENT_HOST_DOMAIN:-}
       PROXYAPI_API_KEY: ${PROXYAPI_API_KEY:-}

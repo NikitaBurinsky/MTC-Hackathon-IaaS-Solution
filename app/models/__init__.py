@@ -6,6 +6,7 @@ from app.models.enums import (
     ScriptSourceType,
     TaskRunStatus,
     TaskStatus,
+    UserRole,
 )
 from app.models.models import (
     Deployment,
@@ -45,5 +46,6 @@ __all__ = [
     "TaskRunStatus",
     "TaskStatus",
     "Tenant",
+    "UserRole",
     "User",
 ]

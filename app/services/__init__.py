@@ -1,3 +1,4 @@
+from app.services.admin_service import AdminService
 from app.services.auth_service import AuthService
 from app.services.billing_service import BillingService
 from app.services.compute_service import ComputeService
@@ -9,6 +10,7 @@ from app.services.tenant_service import TenantService
 
 __all__ = [
     "AuthService",
+    "AdminService",
     "BillingService",
     "ComputeService",
     "DeploymentService",

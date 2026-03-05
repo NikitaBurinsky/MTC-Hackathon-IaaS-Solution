@@ -3,7 +3,7 @@ from sqlmodel import Session, select
 
 from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password, verify_password
-from app.models import Plan, Tenant, User
+from app.models import Plan, Tenant, User, UserRole
 
 
 class AuthService:
@@ -66,6 +66,7 @@ class AuthService:
             name=normalized_name,
             email=normalized_email,
             password_hash=hash_password(password),
+            role=UserRole.USER,
             is_active=True,
         )
         session.add(user)
@@ -74,7 +75,7 @@ class AuthService:
         session.refresh(tenant)
         return user, tenant
 
-    def login(self, session: Session, email: str, password: str) -> str:
+    def login(self, session: Session, email: str, password: str) -> tuple[str, User]:
         normalized_email = email.strip().lower()
         user = session.exec(
             select(User).where(User.email == normalized_email)
@@ -89,4 +90,9 @@ class AuthService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Inactive user",
             )
-        return create_access_token(subject=str(user.id), tenant_id=user.tenant_id)
+        token = create_access_token(
+            subject=str(user.id),
+            tenant_id=user.tenant_id,
+            role=user.role.value,
+        )
+        return token, user

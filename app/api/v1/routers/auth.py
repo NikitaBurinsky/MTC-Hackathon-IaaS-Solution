@@ -62,13 +62,18 @@ def register(
         password=payload.password,
         tenant_name=payload.tenant_name,
     )
-    token = create_access_token(subject=str(user.id), tenant_id=tenant.id)
+    token = create_access_token(
+        subject=str(user.id),
+        tenant_id=tenant.id,
+        role=user.role.value,
+    )
     set_auth_cookie(response, token, request)
     return RegisterResponse(
         tenant_id=tenant.id,
         tenant_name=tenant.name,
         user_id=user.id,
         email=user.email,
+        role=user.role,
         access_token=token,
     )
 
@@ -80,8 +85,8 @@ def login(
     request: Request,
     session: Session = Depends(get_session),
 ):
-    token = auth_service.login(
+    token, user = auth_service.login(
         session=session, email=payload.email, password=payload.password
     )
     set_auth_cookie(response, token, request)
-    return TokenResponse(access_token=token)
+    return TokenResponse(access_token=token, role=user.role)
