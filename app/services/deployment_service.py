@@ -923,10 +923,10 @@ class DeploymentService:
             record = self._deployments.get(deployment_id)
             if not record:
                 return self._effective_max_attempts()
-            return max(1, min(record.max_attempts, 3))
+            return max(1, min(record.max_attempts, 5))
 
     def _effective_max_attempts(self) -> int:
-        return max(1, min(int(self.settings.ai_deploy_max_attempts), 3))
+        return max(1, min(int(self.settings.ai_deploy_max_attempts), 5))
 
     def _effective_retry_context_max_chars(self) -> int:
         return max(20_000, int(self.settings.ai_deploy_retry_context_max_chars))

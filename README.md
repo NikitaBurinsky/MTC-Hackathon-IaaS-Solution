@@ -91,7 +91,7 @@ HTTPS support for hosted subdomains:
 Referer-based routing is intentionally not used as a primary production mechanism.
 
 AI deployment retries are enabled by default:
-- up to 3 attempts per deployment (`AI_DEPLOY_MAX_ATTEMPTS`, hard-capped at 3)
+- up to 5 attempts per deployment (`AI_DEPLOY_MAX_ATTEMPTS`, hard-capped at 5)
 - retry occurs only after Docker build failures
 - attempts 2-3 include enriched repository context + previous build feedback.
 
@@ -124,7 +124,7 @@ Optional GitHub Variables:
 - `PROXYAPI_BASE_URL` (default: `https://api.proxyapi.ru/openrouter/v1`)
 - `PROXYAPI_MODEL` (default: `deepseek/deepseek-chat`)
 - `PROXYAPI_TIMEOUT_SEC` (default: `120`)
-- `AI_DEPLOY_MAX_ATTEMPTS` (default: `3`, hard cap `3`)
+- `AI_DEPLOY_MAX_ATTEMPTS` (default: `3`, hard cap `5`)
 - `AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS` (default: `120000`)
 - `SUPERUSER_NAME` (default: `SuperUser`)
 

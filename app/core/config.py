@@ -91,7 +91,7 @@ class Settings:
         self.proxyapi_timeout_sec = float(os.getenv("PROXYAPI_TIMEOUT_SEC", "120"))
 
         self.ai_deploy_max_attempts = min(
-            3,
+            5,
             max(1, int(os.getenv("AI_DEPLOY_MAX_ATTEMPTS", "3"))),
         )
         self.ai_deploy_retry_context_max_chars = max(
