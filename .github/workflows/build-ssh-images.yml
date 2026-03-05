@@ -1,0 +1,58 @@
+name: Build SSH Images
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "infra/docker/ssh-images/**"
+      - ".github/workflows/build-ssh-images.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubuntu
+            context: infra/docker/ssh-images/ubuntu
+            image: iaas-ubuntu-ssh
+          - name: alpine
+            context: infra/docker/ssh-images/alpine
+            image: iaas-alpine-ssh
+          - name: postgres
+            context: infra/docker/ssh-images/postgres
+            image: iaas-postgres-ssh
+          - name: docker
+            context: infra/docker/ssh-images/docker
+            image: iaas-docker-ssh
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:latest
+            ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }}
