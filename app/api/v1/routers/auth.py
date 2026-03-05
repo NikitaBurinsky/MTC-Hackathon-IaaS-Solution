@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlmodel import Session
 
 from app.core.config import get_settings
@@ -11,17 +11,37 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 auth_service = AuthService()
 
 
-def set_auth_cookie(response: Response, token: str) -> None:
+def _get_request_host(request: Request) -> str:
+    forwarded_host = request.headers.get("x-forwarded-host")
+    if forwarded_host:
+        return forwarded_host.split(",")[0].strip()
+    return request.headers.get("host", "")
+
+
+def _is_localhost(host: str) -> bool:
+    hostname = host.split(":")[0].lower()
+    return hostname in {"localhost", "127.0.0.1", "[::1]"}
+
+
+def set_auth_cookie(response: Response, token: str, request: Request) -> None:
     settings = get_settings()
-    secure = settings.cookie_secure or settings.cookie_samesite == "none"
+    host = _get_request_host(request)
+    is_local = _is_localhost(host)
+    samesite = settings.cookie_samesite
+    secure = settings.cookie_secure or samesite == "none"
+    domain = "formatis.online"
+    if is_local:
+        samesite = "lax"
+        secure = False
+        domain = None
     response.set_cookie(
         key="access_token",
         value=token,
         httponly=True,
-        samesite=settings.cookie_samesite,
+        samesite=samesite,
         secure=secure,
         max_age=settings.access_token_expire_minutes * 60,
-        # domain="formatis.online",
+        domain=domain,
         path="/",
     )
 
@@ -32,6 +52,7 @@ def set_auth_cookie(response: Response, token: str) -> None:
 def register(
     payload: RegisterRequest,
     response: Response,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     user, tenant = auth_service.register(
@@ -42,7 +63,7 @@ def register(
         tenant_name=payload.tenant_name,
     )
     token = create_access_token(subject=str(user.id), tenant_id=tenant.id)
-    set_auth_cookie(response, token)
+    set_auth_cookie(response, token, request)
     return RegisterResponse(
         tenant_id=tenant.id,
         tenant_name=tenant.name,
@@ -56,10 +77,11 @@ def register(
 def login(
     payload: LoginRequest,
     response: Response,
+    request: Request,
     session: Session = Depends(get_session),
 ):
     token = auth_service.login(
         session=session, email=payload.email, password=payload.password
     )
-    set_auth_cookie(response, token)
+    set_auth_cookie(response, token, request)
     return TokenResponse(access_token=token)
