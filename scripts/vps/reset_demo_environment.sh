@@ -84,6 +84,15 @@ if [ "${PSQL_NETWORK_MODE}" != "host" ]; then
   docker network inspect "${DEPLOYMENT_NETWORK_NAME}" >/dev/null 2>&1 || docker network create "${DEPLOYMENT_NETWORK_NAME}" >/dev/null
 fi
 
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "Docker Compose is required but was not found."
+  exit 1
+fi
+
 declare -a CONTAINERS_TO_REMOVE=()
 declare -a IMAGES_TO_REMOVE=()
 
@@ -187,7 +196,7 @@ collect_from_network
 
 log "[cleanup] Stopping and removing project containers."
 cleanup_containers
-docker compose -f "${APP_COMPOSE_FILE}" down --remove-orphans || true
+${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" down --remove-orphans || true
 
 log "[cleanup] Removing project deployment images."
 cleanup_images
@@ -232,11 +241,11 @@ log "[app-up] Logging in to GHCR."
 echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
 
 log "[app-up] Pulling and recreating api/nginx containers."
-docker compose -f "${APP_COMPOSE_FILE}" pull api
-docker compose -f "${APP_COMPOSE_FILE}" up -d --force-recreate api nginx
+${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" pull api
+${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" up -d --force-recreate api nginx
 
 log "[nginx-check] Validating nginx config."
-docker compose -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -t
-docker compose -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -s reload
+${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -t
+${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -s reload
 
 log "Demo environment reset completed successfully."
