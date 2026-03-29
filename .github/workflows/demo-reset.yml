@@ -1,0 +1,140 @@
+name: Demo Reset
+
+on:
+  schedule:
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: demo-reset
+  cancel-in-progress: false
+
+jobs:
+  reset-on-vps:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Copy reset assets to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          source: "scripts/vps/reset_demo_environment.sh,infra/docker/docker-compose.app.yml,infra/nginx/nginx.conf,infra/nginx/nginx.https.template.conf"
+          target: "/tmp/iaas-reset-${{ github.run_id }}"
+          overwrite: true
+
+      - name: Run scheduled demo reset on VPS
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            set -euo pipefail
+
+            APP_DIR="${{ vars.VPS_APP_DIR }}"
+            if [ -z "${APP_DIR}" ]; then APP_DIR="/opt/iaas-hackathon"; fi
+
+            DEPLOY_TMP="/tmp/iaas-reset-${{ github.run_id }}"
+            mkdir -p "${APP_DIR}/scripts/vps" "${APP_DIR}/infra/docker" "${APP_DIR}/infra/nginx"
+
+            cp -f "${DEPLOY_TMP}/scripts/vps/reset_demo_environment.sh" "${APP_DIR}/scripts/vps/reset_demo_environment.sh"
+            cp -f "${DEPLOY_TMP}/infra/docker/docker-compose.app.yml" "${APP_DIR}/infra/docker/docker-compose.app.yml"
+            cp -f "${DEPLOY_TMP}/infra/nginx/nginx.conf" "${APP_DIR}/infra/nginx/nginx.conf"
+            cp -f "${DEPLOY_TMP}/infra/nginx/nginx.https.template.conf" "${APP_DIR}/infra/nginx/nginx.https.template.conf"
+            rm -rf "${DEPLOY_TMP}"
+
+            sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/scripts/vps/reset_demo_environment.sh"
+            sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/infra/nginx/nginx.conf"
+            sed -i '1s/^\xEF\xBB\xBF//' "${APP_DIR}/infra/nginx/nginx.https.template.conf"
+            chmod +x "${APP_DIR}/scripts/vps/reset_demo_environment.sh"
+
+            DOMAIN="${{ secrets.DOMAIN }}"
+            DATABASE_URL="${{ secrets.DATABASE_URL }}"
+            JWT_SECRET="${{ secrets.JWT_SECRET }}"
+            PROXYAPI_API_KEY="${{ secrets.PROXYAPI_API_KEY }}"
+            SUPERUSER_EMAIL="${{ secrets.SUPERUSER_EMAIL }}"
+            SUPERUSER_PASSWORD="${{ secrets.SUPERUSER_PASSWORD }}"
+            SUPERUSER_NAME="${{ vars.SUPERUSER_NAME }}"
+            if [ -z "${SUPERUSER_NAME}" ]; then SUPERUSER_NAME="SuperUser"; fi
+            POSTGRES_CONTAINER_NAME="${{ vars.POSTGRES_CONTAINER_NAME }}"
+            if [ -z "${POSTGRES_CONTAINER_NAME}" ]; then POSTGRES_CONTAINER_NAME="iaas-postgres"; fi
+            NGINX_RUNTIME_CONF="${{ vars.NGINX_RUNTIME_CONF }}"
+            if [ -z "${NGINX_RUNTIME_CONF}" ]; then NGINX_RUNTIME_CONF="/tmp/iaas-nginx.conf/nginx.conf"; fi
+            NGINX_CONTAINER_NAME="${{ vars.NGINX_CONTAINER_NAME }}"
+            if [ -z "${NGINX_CONTAINER_NAME}" ]; then NGINX_CONTAINER_NAME="iaas-nginx"; fi
+            DEPLOYMENT_NETWORK_NAME="${{ vars.DEPLOYMENT_NETWORK_NAME }}"
+            if [ -z "${DEPLOYMENT_NETWORK_NAME}" ]; then DEPLOYMENT_NETWORK_NAME="iaas-backbone"; fi
+            DEPLOYMENT_PUBLIC_SCHEME="${{ vars.DEPLOYMENT_PUBLIC_SCHEME }}"
+            if [ -z "${DEPLOYMENT_PUBLIC_SCHEME}" ]; then DEPLOYMENT_PUBLIC_SCHEME="https"; fi
+            DEPLOYMENT_HOST_DOMAIN="${{ vars.DEPLOYMENT_HOST_DOMAIN }}"
+            DEPLOYMENT_TLS_CERT_PATH="${{ vars.DEPLOYMENT_TLS_CERT_PATH }}"
+            DEPLOYMENT_TLS_KEY_PATH="${{ vars.DEPLOYMENT_TLS_KEY_PATH }}"
+            COOKIE_SAMESITE="${{ vars.COOKIE_SAMESITE }}"
+            if [ -z "${COOKIE_SAMESITE}" ]; then COOKIE_SAMESITE="lax"; fi
+            COOKIE_SECURE="${{ vars.COOKIE_SECURE }}"
+            if [ -z "${COOKIE_SECURE}" ]; then COOKIE_SECURE="true"; fi
+            PROXYAPI_BASE_URL="${{ vars.PROXYAPI_BASE_URL }}"
+            if [ -z "${PROXYAPI_BASE_URL}" ]; then PROXYAPI_BASE_URL="https://api.proxyapi.ru/openrouter/v1"; fi
+            PROXYAPI_MODEL="${{ vars.PROXYAPI_MODEL }}"
+            if [ -z "${PROXYAPI_MODEL}" ]; then PROXYAPI_MODEL="deepseek/deepseek-chat"; fi
+            PROXYAPI_TIMEOUT_SEC="${{ vars.PROXYAPI_TIMEOUT_SEC }}"
+            if [ -z "${PROXYAPI_TIMEOUT_SEC}" ]; then PROXYAPI_TIMEOUT_SEC="120"; fi
+            AI_DEPLOY_MAX_ATTEMPTS="${{ vars.AI_DEPLOY_MAX_ATTEMPTS }}"
+            if [ -z "${AI_DEPLOY_MAX_ATTEMPTS}" ]; then AI_DEPLOY_MAX_ATTEMPTS="3"; fi
+            AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS="${{ vars.AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS }}"
+            if [ -z "${AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS}" ]; then AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS="120000"; fi
+            CPU_PRICE_PER_VCPU_MIN="${{ vars.CPU_PRICE_PER_VCPU_MIN }}"
+            if [ -z "${CPU_PRICE_PER_VCPU_MIN}" ]; then CPU_PRICE_PER_VCPU_MIN="1"; fi
+            RAM_PRICE_PER_GB_MIN="${{ vars.RAM_PRICE_PER_GB_MIN }}"
+            if [ -z "${RAM_PRICE_PER_GB_MIN}" ]; then RAM_PRICE_PER_GB_MIN="5"; fi
+
+            GHCR_USER="${{ github.actor }}"
+            GHCR_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+            REPO_SLUG="${{ github.repository }}"
+            REPO_SLUG="${REPO_SLUG,,}"
+            APP_IMAGE="ghcr.io/${REPO_SLUG}/iaas-api:latest"
+
+            if [ -z "${DOMAIN}" ] || [ -z "${DATABASE_URL}" ] || [ -z "${JWT_SECRET}" ] || [ -z "${PROXYAPI_API_KEY}" ] || [ -z "${SUPERUSER_EMAIL}" ] || [ -z "${SUPERUSER_PASSWORD}" ]; then
+              echo "Required secrets are missing"
+              exit 1
+            fi
+
+            export APP_DIR
+            export DOMAIN
+            export DATABASE_URL
+            export JWT_SECRET
+            export PROXYAPI_API_KEY
+            export SUPERUSER_EMAIL
+            export SUPERUSER_PASSWORD
+            export SUPERUSER_NAME
+            export POSTGRES_CONTAINER_NAME
+            export NGINX_RUNTIME_CONF
+            export NGINX_CONTAINER_NAME
+            export DEPLOYMENT_NETWORK_NAME
+            export DEPLOYMENT_PUBLIC_SCHEME
+            export DEPLOYMENT_HOST_DOMAIN
+            export DEPLOYMENT_TLS_CERT_PATH
+            export DEPLOYMENT_TLS_KEY_PATH
+            export COOKIE_SAMESITE
+            export COOKIE_SECURE
+            export PROXYAPI_BASE_URL
+            export PROXYAPI_MODEL
+            export PROXYAPI_TIMEOUT_SEC
+            export AI_DEPLOY_MAX_ATTEMPTS
+            export AI_DEPLOY_RETRY_CONTEXT_MAX_CHARS
+            export CPU_PRICE_PER_VCPU_MIN
+            export RAM_PRICE_PER_GB_MIN
+            export GHCR_USER
+            export GHCR_TOKEN
+            export APP_IMAGE
+
+            bash "${APP_DIR}/scripts/vps/reset_demo_environment.sh"
