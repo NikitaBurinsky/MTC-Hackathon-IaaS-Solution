@@ -175,32 +175,23 @@ jobs:
             export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
             export APP_IMAGE="${IMAGE_REF}"
 
-            if docker compose version >/dev/null 2>&1; then
-              COMPOSE_CMD="docker compose"
-            elif command -v docker-compose >/dev/null 2>&1; then
-              COMPOSE_CMD="docker-compose"
-            else
-              echo "Docker Compose is required but was not found."
-              exit 1
-            fi
-
             echo "${GHCR_TOKEN}" | docker login ghcr.io -u "${GHCR_USER}" --password-stdin
             docker stop "${NGINX_CONTAINER_NAME}" >/dev/null 2>&1 || true
             docker rm -f "${NGINX_CONTAINER_NAME}" >/dev/null 2>&1 || true
             docker system prune -f || true
-            ${COMPOSE_CMD} -f "${APP_DIR}/infra/docker/docker-compose.app.yml" pull api
-            ${COMPOSE_CMD} -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d --force-recreate api nginx
+            docker-compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" pull api
+            docker-compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d --force-recreate api nginx
 
             sed "s/\${DOMAIN}/${DOMAIN}/g" "${APP_DIR}/infra/nginx/nginx.https.template.conf" > "${NGINX_RUNTIME_CONF}"
             # Hardening for stale templates: normalize http2 syntax and enforce server_name hash sizing.
             sed -i 's/listen 443 ssl http2;/listen 443 ssl;\n    http2 on;/g' "${NGINX_RUNTIME_CONF}"
             grep -q "^server_names_hash_bucket_size" "${NGINX_RUNTIME_CONF}" || sed -i '1iserver_names_hash_bucket_size 128;' "${NGINX_RUNTIME_CONF}"
             grep -q "^server_names_hash_max_size" "${NGINX_RUNTIME_CONF}" || sed -i '2iserver_names_hash_max_size 8192;' "${NGINX_RUNTIME_CONF}"
-            ${COMPOSE_CMD} -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d --force-recreate nginx
+            docker-compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" up -d --force-recreate nginx
             sed -i '1s/^\xEF\xBB\xBF//' "${NGINX_RUNTIME_CONF}"
             echo "===== nginx runtime conf preview ====="
             sed -n '1,60p' "${NGINX_RUNTIME_CONF}"
-            ${COMPOSE_CMD} -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -t
-            ${COMPOSE_CMD} -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload
+            docker-compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -t
+            docker-compose -f "${APP_DIR}/infra/docker/docker-compose.app.yml" exec -T nginx nginx -s reload
 
             echo "Deploy finished with image ${IMAGE_REF}."

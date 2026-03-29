@@ -16,22 +16,13 @@ cd "${APP_DIR}"
 docker network inspect iaas-backbone >/dev/null 2>&1 || docker network create iaas-backbone
 git pull --ff-only
 
-if docker compose version >/dev/null 2>&1; then
-  COMPOSE_CMD="docker compose"
-elif command -v docker-compose >/dev/null 2>&1; then
-  COMPOSE_CMD="docker-compose"
-else
-  echo "Docker Compose is required but was not found."
-  exit 1
-fi
-
 cp infra/nginx/nginx.conf "${NGINX_RUNTIME_CONF}"
 export NGINX_CONF_PATH="${NGINX_RUNTIME_CONF}"
 
-${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" up -d --build api nginx
+docker-compose -f "${APP_COMPOSE_FILE}" up -d --build api nginx
 
 sed "s/\${DOMAIN}/${DOMAIN}/g" infra/nginx/nginx.https.template.conf > "${NGINX_RUNTIME_CONF}"
-${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" up -d nginx
-${COMPOSE_CMD} -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -s reload || true
+docker-compose -f "${APP_COMPOSE_FILE}" up -d nginx
+docker-compose -f "${APP_COMPOSE_FILE}" exec -T nginx nginx -s reload || true
 
 echo "Deploy finished."
