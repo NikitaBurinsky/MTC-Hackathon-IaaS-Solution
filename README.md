@@ -100,6 +100,7 @@ AI deployment retries are enabled by default:
 Workflows:
 - `.github/workflows/db-bootstrap.yml` (manual trigger)
 - `.github/workflows/deploy-app.yml` (auto on push to `main`)
+- `.github/workflows/demo-reset.yml` (auto daily + manual trigger)
 
 DB bootstrap recreates PostgreSQL from scratch each run (container + volume).
 
@@ -131,3 +132,21 @@ Optional GitHub Variables:
 Runtime note:
 - startup is fail-fast if `SUPERUSER_EMAIL` or `SUPERUSER_PASSWORD` is missing.
 - this RBAC rollout assumes DB reset (`drop & recreate`) without Alembic migrations.
+
+## Automated Demo Reset
+
+The demo environment can be fully reset by `.github/workflows/demo-reset.yml`.
+
+Current schedule:
+- daily at `05:00 UTC` (`08:00` Minsk, `UTC+3`)
+- manual trigger via `workflow_dispatch`
+
+Reset scope:
+- project runtime containers (`iaas-api`, `iaas-nginx`, and deployment containers on `DEPLOYMENT_NETWORK_NAME`)
+- database reset via `DATABASE_URL` (`DROP SCHEMA public CASCADE` + recreate)
+- project deployment images cleanup (from DB records; fallback `tenant-*-deploy-*`)
+- full restart of `api + nginx` (database remains external or managed separately)
+- `POSTGRES_VOLUME_NAME` is not used by this workflow.
+
+To change the interval `N`, update the cron expression in
+`.github/workflows/demo-reset.yml`.

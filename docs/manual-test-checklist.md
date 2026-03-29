@@ -20,3 +20,4 @@ Use `/docs` to validate the MVP acceptance scenarios:
 16. Validation errors return 422 with a concise error message (no details array).
 17. Tenant balance decreases every 60 seconds while instances are RUNNING.
 18. When balance <= 0, all tenant RUNNING instances stop automatically.
+19. Demo reset workflow (`.github/workflows/demo-reset.yml`) resets DB data via `DATABASE_URL`, removes project deployment containers/images, and brings `api + nginx` back to healthy state.

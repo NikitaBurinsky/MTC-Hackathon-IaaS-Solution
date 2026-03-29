@@ -93,6 +93,7 @@ app.add_middleware(
         "https://api.formatis.online",
         "https://formatis.online",
         "https://www.formatis.online",
+        "https://iaas.formatis.online",
         "https://api.formatis.online",
         "http://localhost",
         "http://localhost:80",
