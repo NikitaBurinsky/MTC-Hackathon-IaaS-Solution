@@ -196,7 +196,16 @@ log "[db-reset] Resetting database via DATABASE_URL."
 run_psql_exec "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO CURRENT_USER; GRANT ALL ON SCHEMA public TO PUBLIC;"
 
 log "[app-up] Preparing runtime nginx config."
-mkdir -p "$(dirname "${NGINX_RUNTIME_CONF}")"
+NGINX_RUNTIME_DIR="$(dirname "${NGINX_RUNTIME_CONF}")"
+if [ -f "${NGINX_RUNTIME_DIR}" ]; then
+  echo "NGINX_RUNTIME_CONF parent path ${NGINX_RUNTIME_DIR} is a file; cannot create directory."
+  exit 1
+fi
+mkdir -p "${NGINX_RUNTIME_DIR}"
+if [ -d "${NGINX_RUNTIME_CONF}" ]; then
+  log "[app-up] Removing directory at ${NGINX_RUNTIME_CONF} to replace with config file."
+  rm -rf "${NGINX_RUNTIME_CONF}"
+fi
 sed "s/\${DOMAIN}/${DOMAIN}/g" "${NGINX_TEMPLATE_FILE}" > "${NGINX_RUNTIME_CONF}"
 sed -i 's/listen 443 ssl http2;/listen 443 ssl;\n    http2 on;/g' "${NGINX_RUNTIME_CONF}"
 grep -q "^server_names_hash_bucket_size" "${NGINX_RUNTIME_CONF}" || sed -i '1iserver_names_hash_bucket_size 128;' "${NGINX_RUNTIME_CONF}"
